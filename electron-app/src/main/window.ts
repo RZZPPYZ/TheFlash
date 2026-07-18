@@ -41,7 +41,7 @@ export function createWindow(): BrowserWindow {
     resizable: true,
     maximizable: false,
     fullscreenable: false,
-    alwaysOnTop: getConfig().get().always_on_top,
+    alwaysOnTop: false,
     backgroundColor: dark ? '#0f0f10' : '#fafafa',
     title: 'The Flash', // also used for single-instance FindWindow parity
     webPreferences: {
@@ -109,6 +109,7 @@ export function showWindow(): void {
   positionNearCursor()
 
   if (win.isMinimized()) win.restore()
+  win.setAlwaysOnTop(false)
   win.show()
   win.focus()
   // Tell renderer to autofocus the textarea now that the window is up.

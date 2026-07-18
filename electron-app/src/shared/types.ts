@@ -36,7 +36,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   hotkey: { modifiers: ['Ctrl', 'Shift'], key: 'F' },
   save_path: '', // filled at runtime from getDefaultSavePath()
   window_geometry: { x: null, y: null, width: 520, height: 400 },
-  always_on_top: true,
+  always_on_top: false,
   auto_save_on_close: false,
   start_minimized_to_tray: true,
   theme: 'dark'
