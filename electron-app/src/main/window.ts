@@ -10,7 +10,7 @@
  * (python-legacy/theflash/ui/editor.py:284).
  */
 
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, screen, shell, nativeImage } from 'electron'
 import { join } from 'path'
 import { getConfig, getDraftManager } from './state'
 import { IPC, type WindowGeometry } from '../shared/types'
@@ -42,6 +42,7 @@ export function createWindow(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     alwaysOnTop: false,
+    icon: nativeImage.createFromPath(join(__dirname, '../../resources/icon.png')),
     backgroundColor: dark ? '#0f0f10' : '#fafafa',
     title: 'The Flash', // also used for single-instance FindWindow parity
     webPreferences: {
