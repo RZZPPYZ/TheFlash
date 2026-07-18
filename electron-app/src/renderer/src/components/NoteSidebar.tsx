@@ -8,7 +8,9 @@ interface Props {
   onSelectNote: (note: TodayNote, content: string) => void
   onDeleteNote: (filepath: string) => void
   onMergeNotes: (notes: TodayNote[]) => void
+  onSelectionChange: (paths: Set<string>) => void
   currentNotePath: string | null
+  selectedPaths: Set<string>
   theme: 'dark' | 'light'
 }
 
@@ -19,38 +21,37 @@ export default function NoteSidebar({
   onSelectNote,
   onDeleteNote,
   onMergeNotes,
+  onSelectionChange,
   currentNotePath,
+  selectedPaths,
   theme
 }: Props): JSX.Element {
   const dark = theme === 'dark'
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
 
-  // Clear selections when sidebar closes.
+  // Clear hover when sidebar closes.
   useEffect(() => {
     if (!open) {
       setHoveredIdx(null)
-      setSelectedPaths(new Set())
+      onSelectionChange(new Set())
     }
   }, [open])
 
   async function handleClick(e: React.MouseEvent, note: TodayNote): Promise<void> {
     // Ctrl+click: toggle multi-select
     if (e.ctrlKey || e.metaKey) {
-      setSelectedPaths((prev) => {
-        const next = new Set(prev)
-        if (next.has(note.path)) {
-          next.delete(note.path)
-        } else {
-          next.add(note.path)
-        }
-        return next
-      })
+      const next = new Set(selectedPaths)
+      if (next.has(note.path)) {
+        next.delete(note.path)
+      } else {
+        next.add(note.path)
+      }
+      onSelectionChange(next)
       return
     }
 
     // Normal click without Ctrl: clear selection, load note
-    setSelectedPaths(new Set())
+    onSelectionChange(new Set())
     try {
       const content = await window.flash.loadNote(note.path)
       onSelectNote(note, content)
@@ -59,11 +60,9 @@ export default function NoteSidebar({
 
   function handleDelete(e: React.MouseEvent, filepath: string): void {
     e.stopPropagation()
-    setSelectedPaths((prev) => {
-      const next = new Set(prev)
-      next.delete(filepath)
-      return next
-    })
+    const next = new Set(selectedPaths)
+    next.delete(filepath)
+    onSelectionChange(next)
     void onDeleteNote(filepath)
   }
 
@@ -71,7 +70,7 @@ export default function NoteSidebar({
     const selected = notes.filter((n) => selectedPaths.has(n.path))
     if (selected.length >= 2) {
       onMergeNotes(selected)
-      setSelectedPaths(new Set())
+      onSelectionChange(new Set())
     }
   }
 

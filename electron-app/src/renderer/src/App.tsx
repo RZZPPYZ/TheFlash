@@ -260,7 +260,7 @@ export default function App(): JSX.Element {
       const contents = await Promise.all(
         notes.map((n) => flash.loadNote(n.path))
       )
-      const merged = contents.join('\n\n---\n\n')
+      const merged = contents.join(' ')
       // Save merged content as a new note.
       const result = await flash.saveNote(merged)
       // Delete the original notes.
@@ -309,7 +309,7 @@ export default function App(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, modified, saving])
+  }, [text, modified, saving, selectedPaths])
 
   return (
     <div className="flex h-screen flex-col bg-base-900">
@@ -322,7 +322,9 @@ export default function App(): JSX.Element {
           onSelectNote={handleSelectNote}
           onDeleteNote={handleDeleteNote}
           onMergeNotes={handleMergeNotes}
+          onSelectionChange={setSelectedPaths}
           currentNotePath={currentNotePath}
+          selectedPaths={selectedPaths}
           theme={theme}
         />
         <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} fontSize={fontSize} />
