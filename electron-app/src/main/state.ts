@@ -8,14 +8,18 @@
 
 import { Config } from './config'
 import { NoteManager } from './storage'
+import { DraftManager } from './draft'
 import { getDefaultSavePath } from './paths'
 
 let configInstance: Config | null = null
+let draftInstance: DraftManager | null = null
 
 /** Construct the singletons. Call once after app.whenReady(). */
 export function init(): void {
   if (configInstance) return
   configInstance = new Config()
+  draftInstance = new DraftManager()
+  draftInstance.init()
 }
 
 export function getConfig(): Config {
@@ -33,4 +37,12 @@ export function configData() {
 
 export function getNoteManager(): NoteManager {
   return new NoteManager(getConfig().get().save_path || getDefaultSavePath())
+}
+
+export function getDraftManager(): DraftManager {
+  if (!draftInstance) {
+    draftInstance = new DraftManager()
+    draftInstance.init()
+  }
+  return draftInstance
 }

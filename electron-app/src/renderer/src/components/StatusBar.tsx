@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface Props {
   text: string
   saving: boolean
   savedFlash: boolean
   theme: 'dark' | 'light'
+  todayCount: number
+  sidebarOpen: boolean
+  onToggleSidebar: () => void
   onSave: () => void
+  onNew: () => void
   onCancel: () => void
   onOpenFolder: () => void
 }
@@ -15,7 +19,11 @@ export default function StatusBar({
   saving,
   savedFlash,
   theme,
+  todayCount,
+  sidebarOpen,
+  onToggleSidebar,
   onSave,
+  onNew,
   onCancel,
   onOpenFolder
 }: Props): JSX.Element {
@@ -32,6 +40,42 @@ export default function StatusBar({
       }`}
     >
       <div className="flex items-center gap-2">
+        {todayCount > 0 && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors ${
+              sidebarOpen
+                ? dark
+                  ? 'bg-base-700 text-ink-300'
+                  : 'bg-zinc-200 text-zinc-600'
+                : dark
+                  ? 'bg-base-700 text-ink-300 hover:bg-base-600'
+                  : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
+            }`}
+            title="Toggle today's notes (Ctrl+Shift+H)"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M1 3h10M1 6h10M1 9h10" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+            </svg>
+            {todayCount}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onNew}
+          disabled={saving}
+          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] transition-colors disabled:opacity-50 ${
+            dark
+              ? 'bg-base-700 text-ink-300 hover:bg-base-600'
+              : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
+          }`}
+        >
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          New
+        </button>
         <button
           type="button"
           onClick={onSave}

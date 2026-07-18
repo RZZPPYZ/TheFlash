@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 
 interface Props {
   modified: boolean
+  isDraft: boolean
   onClose: () => void
 }
 
 /** Frameless title bar — drag region + unsaved dot + close (✕). */
-export default function TitleBar({ modified, onClose }: Props): JSX.Element {
+export default function TitleBar({ modified, isDraft, onClose }: Props): JSX.Element {
   const [hover, setHover] = useState(false)
 
   // Double-click maximizes are disabled in main (maximizable:false) — no-op drag only.
@@ -21,7 +22,7 @@ export default function TitleBar({ modified, onClose }: Props): JSX.Element {
         {modified && (
           <span className="flex items-center gap-1 text-[11px] text-accent/90">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
-            Unsaved
+            {isDraft ? 'Draft' : 'Unsaved'}
           </span>
         )}
       </div>

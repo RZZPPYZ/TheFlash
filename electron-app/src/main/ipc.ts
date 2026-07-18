@@ -9,7 +9,7 @@
  */
 
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
-import { getConfig, getNoteManager } from './state'
+import { getConfig, getNoteManager, getDraftManager } from './state'
 import { IPC, type UnsavedChoice, type SaveResult } from '../shared/types'
 import { hideWindow, saveGeometry } from './window'
 
@@ -58,5 +58,25 @@ export function registerIpc(): void {
   ipcMain.on(IPC.HIDE_WINDOW, () => {
     saveGeometry()
     hideWindow()
+  })
+
+  ipcMain.handle(IPC.SAVE_DRAFT, async (_e, text: string): Promise<void> => {
+    getDraftManager().save(text)
+  })
+
+  ipcMain.handle(IPC.CLEAR_DRAFT, async (): Promise<void> => {
+    getDraftManager().clear()
+  })
+
+  ipcMain.handle(IPC.GET_TODAY_NOTE_COUNT, async (): Promise<number> => {
+    return getNoteManager().getTodayCount()
+  })
+
+  ipcMain.handle(IPC.GET_TODAY_NOTES, async () => {
+    return getNoteManager().getTodayNotes()
+  })
+
+  ipcMain.handle(IPC.LOAD_NOTE, async (_e, filepath: string): Promise<string> => {
+    return getNoteManager().load(filepath)
   })
 }

@@ -4,7 +4,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type AppConfig, type UnsavedChoice, type SaveResult } from '../shared/types'
+import { IPC, type AppConfig, type UnsavedChoice, type SaveResult, type TodayNote } from '../shared/types'
 
 const flashAPI = {
   saveNote: (text: string): Promise<SaveResult | null> =>
@@ -31,7 +31,30 @@ const flashAPI = {
     const listener = (): void => cb()
     ipcRenderer.on(IPC.FOCUS_EDITOR, listener)
     return () => ipcRenderer.removeListener(IPC.FOCUS_EDITOR, listener)
-  }
+  },
+
+  // Draft management.
+  saveDraft: (text: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.SAVE_DRAFT, text),
+
+  clearDraft: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.CLEAR_DRAFT),
+
+  getTodayNoteCount: (): Promise<number> =>
+    ipcRenderer.invoke(IPC.GET_TODAY_NOTE_COUNT),
+
+  onRestoreDraft: (cb: (text: string) => void): (() => void) => {
+    const listener = (_e: any, text: string): void => cb(text)
+    ipcRenderer.on(IPC.RESTORE_DRAFT, listener)
+    return () => ipcRenderer.removeListener(IPC.RESTORE_DRAFT, listener)
+  },
+
+  // Today's notes.
+  getTodayNotes: (): Promise<TodayNote[]> =>
+    ipcRenderer.invoke(IPC.GET_TODAY_NOTES),
+
+  loadNote: (filepath: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.LOAD_NOTE, filepath)
 }
 
 export type FlashAPI = typeof flashAPI

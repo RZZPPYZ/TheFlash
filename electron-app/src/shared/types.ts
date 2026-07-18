@@ -52,9 +52,22 @@ export const IPC = {
   SHOW_IN_FOLDER: 'flash:show-in-folder', // renderer → main: open notes dir
   HIDE_WINDOW: 'flash:hide-window', // renderer → main: hide editor (after save / escape)
   CLEAR_EDITOR: 'flash:clear-editor', // main → renderer: blank out textarea on show
-  FOCUS_EDITOR: 'flash:focus-editor' // main → renderer: focus textarea after show
+  FOCUS_EDITOR: 'flash:focus-editor', // main → renderer: focus textarea after show
+  SAVE_DRAFT: 'flash:save-draft', // renderer → main: persist daily draft
+  CLEAR_DRAFT: 'flash:clear-draft', // renderer → main: delete draft
+  RESTORE_DRAFT: 'flash:restore-draft', // main → renderer: restore draft text
+  GET_TODAY_NOTE_COUNT: 'flash:get-today-note-count', // renderer → main: count today's notes
+  GET_TODAY_NOTES: 'flash:get-today-notes', // renderer → main: list today's notes with preview
+  LOAD_NOTE: 'flash:load-note' // renderer → main: read note file content
 } as const
 
 export interface SaveResult {
+  path: string
+}
+
+export interface TodayNote {
+  filename: string
+  time: string
+  preview: string
   path: string
 }

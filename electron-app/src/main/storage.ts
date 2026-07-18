@@ -37,6 +37,21 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+const fsSync = require('fs') as typeof import('fs')
+
+function todayPrefix(): string {
+  const d = new Date()
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+export interface TodayNote {
+  filename: string
+  time: string
+  preview: string
+  path: string
+}
+
 export class NoteManager {
   constructor(private savePath: string) {}
 
@@ -46,6 +61,42 @@ export class NoteManager {
     const filepath = await this.newNotePath()
     await fs.writeFile(filepath, text, 'utf-8')
     return { path: filepath }
+  }
+
+  /** Count today's saved .md files in save_path. */
+  getTodayCount(): number {
+    const prefix = todayPrefix()
+    try {
+      const entries = fsSync.readdirSync(this.savePath) as string[]
+      return entries.filter((f) => f.startsWith(prefix) && f.endsWith('.md')).length
+    } catch {
+      return 0
+    }
+  }
+
+  /** List today's saved notes with preview. */
+  getTodayNotes(): TodayNote[] {
+    const prefix = todayPrefix()
+    try {
+      const entries = (fsSync.readdirSync(this.savePath) as string[])
+        .filter((f) => f.startsWith(prefix) && f.endsWith('.md'))
+        .sort()
+        .reverse()
+      return entries.map((f) => {
+        const full = join(this.savePath, f)
+        let preview = ''
+        try {
+          const content = fsSync.readFileSync(full, 'utf-8') as string
+          preview = content.replace(/\n/g, ' ').slice(0, 120)
+        } catch { /* ignore */ }
+        const timePart = f.replace(/\.md$/, '').slice(11)
+        const [h, m] = timePart.split('-')
+        const time = `${h}:${m}`
+        return { filename: f, time, preview, path: full }
+      })
+    } catch {
+      return []
+    }
   }
 
   private async newNotePath(): Promise<string> {

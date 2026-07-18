@@ -12,7 +12,7 @@
 
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'path'
-import { getConfig } from './state'
+import { getConfig, getDraftManager } from './state'
 import { IPC, type WindowGeometry } from '../shared/types'
 
 const MIN_WIDTH = 300
@@ -95,12 +95,16 @@ export function toggleWindow(): void {
   }
 }
 
-/** Show the editor: clear content, position near cursor, focus. */
+/** Show the editor: restore draft or clear content, position near cursor, focus. */
 export function showWindow(): void {
   if (!win) return
 
-  // Clear previous content in the renderer.
-  win.webContents.send(IPC.CLEAR_EDITOR)
+  const draftText = getDraftManager().getText()
+  if (draftText) {
+    win.webContents.send(IPC.RESTORE_DRAFT, draftText)
+  } else {
+    win.webContents.send(IPC.CLEAR_EDITOR)
+  }
 
   positionNearCursor()
 

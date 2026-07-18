@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import TitleBar from './components/TitleBar'
 import Editor from './components/Editor'
 import StatusBar from './components/StatusBar'
+import NoteSidebar from './components/NoteSidebar'
 import { flash } from './lib/ipc'
-import type { AppConfig } from '../../shared/types'
+import type { AppConfig, TodayNote } from '../../shared/types'
 
 export default function App(): JSX.Element {
   const [text, setText] = useState('')
@@ -11,46 +12,82 @@ export default function App(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [isDraft, setIsDraft] = useState(false)
+  const [todayCount, setTodayCount] = useState(0)
+  const [todayNotes, setTodayNotes] = useState<TodayNote[]>([])
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const savedFlashTimer = useRef<number | null>(null)
+  const draftTimerRef = useRef<number | null>(null)
 
-  // Load config once for theme; main drives the rest.
   useEffect(() => {
     flash.getConfig().then((cfg: AppConfig) => setTheme(cfg.theme))
   }, [])
 
-  // Apply dark class to <html> for Tailwind dark: variants + CSS overrides.
+  useEffect(() => {
+    flash.getTodayNoteCount().then((n: number) => setTodayCount(n))
+  }, [])
+
+  function refreshTodayInfo(): void {
+    flash.getTodayNoteCount().then((n: number) => setTodayCount(n))
+    flash.getTodayNotes().then((n: TodayNote[]) => setTodayNotes(n))
+  }
+
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
 
-  // Main → renderer: clear on show, focus after show.
   useEffect(() => {
     const offClear = flash.onClearEditor(() => {
       setText('')
       setModified(false)
+      setIsDraft(false)
       setSavedFlash(false)
+      refreshTodayInfo()
+    })
+    const offRestore = flash.onRestoreDraft((draftText: string) => {
+      setText(draftText)
+      setModified(true)
+      setIsDraft(true)
+      setSavedFlash(false)
+      refreshTodayInfo()
     })
     const offFocus = flash.onFocusEditor(() => {
-      // Focus on next tick so the textarea is mounted/visible.
       requestAnimationFrame(() => textareaRef.current?.focus())
     })
     return () => {
       offClear()
+      offRestore()
       offFocus()
     }
   }, [])
 
+  // Auto-open sidebar on window show when there are today's notes and no draft.
+  useEffect(() => {
+    if (todayNotes.length > 0 && !isDraft) {
+      setSidebarOpen(true)
+    }
+  }, [todayNotes, isDraft])
+
   function handleChange(v: string): void {
     setText(v)
     setModified(true)
+    setIsDraft(false)
+    if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = window.setTimeout(() => {
+      if (v.trim()) {
+        void flash.saveDraft(v)
+      } else {
+        void flash.clearDraft()
+      }
+    }, 1500)
   }
 
   async function doSave(): Promise<void> {
     if (saving) return
     if (!text.trim()) {
-      // Empty note — just hide, don't write a file (parity with legacy).
       setModified(false)
+      void flash.clearDraft()
       flash.hideWindow()
       return
     }
@@ -58,11 +95,13 @@ export default function App(): JSX.Element {
     try {
       const result = await flash.saveNote(text)
       setModified(false)
+      setIsDraft(false)
+      void flash.clearDraft()
+      refreshTodayInfo()
       if (result) {
         setSavedFlash(true)
         if (savedFlashTimer.current) window.clearTimeout(savedFlashTimer.current)
         savedFlashTimer.current = window.setTimeout(() => setSavedFlash(false), 1200)
-        // Brief delay so the "Saved" flash is visible before hide.
         window.setTimeout(() => flash.hideWindow(), 450)
       }
     } catch (e) {
@@ -72,11 +111,45 @@ export default function App(): JSX.Element {
     }
   }
 
+  async function doNew(): Promise<void> {
+    if (saving) return
+    if (text.trim()) {
+      setSaving(true)
+      try {
+        await flash.saveNote(text)
+      } catch (e) {
+        console.error('[new-save] failed:', e)
+      } finally {
+        setSaving(false)
+      }
+    }
+    void flash.clearDraft()
+    setText('')
+    setModified(false)
+    setIsDraft(false)
+    setSavedFlash(false)
+    refreshTodayInfo()
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
   async function onCancel(): Promise<void> {
     await maybeConfirmUnsaved()
   }
 
-  /** Returns true if we ended up hiding (or nothing to confirm). */
+  function toggleSidebar(): void {
+    if (!sidebarOpen) {
+      flash.getTodayNotes().then((n: TodayNote[]) => setTodayNotes(n))
+    }
+    setSidebarOpen((v) => !v)
+  }
+
+  function handleSelectNote(_note: TodayNote, content: string): void {
+    setText(content)
+    setModified(true)
+    setIsDraft(false)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
   async function maybeConfirmUnsaved(): Promise<boolean> {
     if (!modified || !text.trim()) {
       flash.hideWindow()
@@ -89,14 +162,14 @@ export default function App(): JSX.Element {
     }
     if (choice === 'discard') {
       setModified(false)
+      setIsDraft(false)
+      void flash.clearDraft()
       flash.hideWindow()
       return true
     }
-    // cancel — keep editing.
     return false
   }
 
-  // Global key handling within the window.
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       const mod = e.ctrlKey || e.metaKey
@@ -106,6 +179,12 @@ export default function App(): JSX.Element {
       } else if (mod && e.key === 'Enter') {
         e.preventDefault()
         void doSave()
+      } else if (mod && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault()
+        void doNew()
+      } else if (mod && e.shiftKey && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault()
+        toggleSidebar()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         void onCancel()
@@ -118,14 +197,27 @@ export default function App(): JSX.Element {
 
   return (
     <div className="flex h-screen flex-col bg-base-900">
-      <TitleBar modified={modified} onClose={() => void onCancel()} />
-      <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} />
+      <TitleBar modified={modified} isDraft={isDraft} onClose={() => void onCancel()} />
+      <div className="flex flex-1 min-h-0">
+        <NoteSidebar
+          notes={todayNotes}
+          open={sidebarOpen}
+          onToggle={toggleSidebar}
+          onSelectNote={handleSelectNote}
+          theme={theme}
+        />
+        <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} />
+      </div>
       <StatusBar
         text={text}
         saving={saving}
         savedFlash={savedFlash}
         theme={theme}
+        todayCount={todayCount}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={toggleSidebar}
         onSave={() => void doSave()}
+        onNew={() => void doNew()}
         onCancel={() => void onCancel()}
         onOpenFolder={() => void flash.showInFolder()}
       />
