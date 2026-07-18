@@ -14,6 +14,8 @@ interface FlashAPI {
   onRestoreDraft: (cb: (text: string) => void) => () => void
   getTodayNotes: () => Promise<TodayNote[]>
   loadNote: (filepath: string) => Promise<string>
+  updateNote: (filepath: string, text: string) => Promise<SaveResult>
+  deleteNote: (filepath: string) => Promise<boolean>
 }
 
 declare global {

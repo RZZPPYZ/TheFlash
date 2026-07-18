@@ -15,5 +15,7 @@ export const flash = {
   getTodayNoteCount: (): Promise<number> => api.getTodayNoteCount(),
   onRestoreDraft: (cb: (text: string) => void): (() => void) => api.onRestoreDraft(cb),
   getTodayNotes: (): Promise<TodayNote[]> => api.getTodayNotes(),
-  loadNote: (filepath: string): Promise<string> => api.loadNote(filepath)
+  loadNote: (filepath: string): Promise<string> => api.loadNote(filepath),
+  updateNote: (filepath: string, text: string): Promise<SaveResult> => api.updateNote(filepath, text),
+  deleteNote: (filepath: string): Promise<boolean> => api.deleteNote(filepath)
 }

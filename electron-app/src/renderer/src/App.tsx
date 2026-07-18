@@ -16,6 +16,7 @@ export default function App(): JSX.Element {
   const [todayCount, setTodayCount] = useState(0)
   const [todayNotes, setTodayNotes] = useState<TodayNote[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [currentNotePath, setCurrentNotePath] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const savedFlashTimer = useRef<number | null>(null)
   const draftTimerRef = useRef<number | null>(null)
@@ -43,6 +44,7 @@ export default function App(): JSX.Element {
       setModified(false)
       setIsDraft(false)
       setSavedFlash(false)
+      setCurrentNotePath(null)
       refreshTodayInfo()
     })
     const offRestore = flash.onRestoreDraft((draftText: string) => {
@@ -50,6 +52,7 @@ export default function App(): JSX.Element {
       setModified(true)
       setIsDraft(true)
       setSavedFlash(false)
+      setCurrentNotePath(null)
       refreshTodayInfo()
     })
     const offFocus = flash.onFocusEditor(() => {
@@ -62,7 +65,6 @@ export default function App(): JSX.Element {
     }
   }, [])
 
-  // Auto-open sidebar on window show when there are today's notes and no draft.
   useEffect(() => {
     if (todayNotes.length > 0 && !isDraft) {
       setSidebarOpen(true)
@@ -83,13 +85,19 @@ export default function App(): JSX.Element {
     }, 1500)
   }
 
-  /** Save note but keep window open. Used by Ctrl+S and Save button. */
+  /** Save: update existing note in-place, or create new if none tracked. */
   async function doSaveKeep(): Promise<void> {
     if (saving) return
     if (!text.trim()) return
     setSaving(true)
     try {
-      const result = await flash.saveNote(text)
+      let result
+      if (currentNotePath) {
+        result = await flash.updateNote(currentNotePath, text)
+      } else {
+        result = await flash.saveNote(text)
+        if (result) setCurrentNotePath(result.path)
+      }
       setModified(false)
       setIsDraft(false)
       void flash.clearDraft()
@@ -106,7 +114,7 @@ export default function App(): JSX.Element {
     }
   }
 
-  /** Save note and close window. Used by Ctrl+Enter. */
+  /** Save note and close window. */
   async function doSaveAndClose(): Promise<void> {
     if (saving) return
     if (!text.trim()) {
@@ -117,7 +125,13 @@ export default function App(): JSX.Element {
     }
     setSaving(true)
     try {
-      const result = await flash.saveNote(text)
+      let result
+      if (currentNotePath) {
+        result = await flash.updateNote(currentNotePath, text)
+      } else {
+        result = await flash.saveNote(text)
+        if (result) setCurrentNotePath(result.path)
+      }
       setModified(false)
       setIsDraft(false)
       void flash.clearDraft()
@@ -140,7 +154,11 @@ export default function App(): JSX.Element {
     if (text.trim()) {
       setSaving(true)
       try {
-        await flash.saveNote(text)
+        if (currentNotePath) {
+          await flash.updateNote(currentNotePath, text)
+        } else {
+          await flash.saveNote(text)
+        }
       } catch (e) {
         console.error('[new-save] failed:', e)
       } finally {
@@ -152,6 +170,7 @@ export default function App(): JSX.Element {
     setModified(false)
     setIsDraft(false)
     setSavedFlash(false)
+    setCurrentNotePath(null)
     refreshTodayInfo()
     requestAnimationFrame(() => textareaRef.current?.focus())
   }
@@ -161,7 +180,12 @@ export default function App(): JSX.Element {
     if (modified && text.trim()) {
       setSaving(true)
       try {
-        await flash.saveNote(text)
+        if (currentNotePath) {
+          await flash.updateNote(currentNotePath, text)
+        } else {
+          const result = await flash.saveNote(text)
+          if (result) setCurrentNotePath(result.path)
+        }
         void flash.clearDraft()
       } catch (e) {
         console.error('[auto-save] failed:', e)
@@ -182,11 +206,26 @@ export default function App(): JSX.Element {
     setSidebarOpen((v) => !v)
   }
 
-  function handleSelectNote(_note: TodayNote, content: string): void {
+  function handleSelectNote(note: TodayNote, content: string): void {
     setText(content)
-    setModified(true)
+    setModified(false)
     setIsDraft(false)
+    setCurrentNotePath(note.path)
     requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  async function handleDeleteNote(filepath: string): Promise<void> {
+    try {
+      await flash.deleteNote(filepath)
+      if (currentNotePath === filepath) {
+        setText('')
+        setModified(false)
+        setCurrentNotePath(null)
+      }
+      refreshTodayInfo()
+    } catch (e) {
+      console.error('[delete] failed:', e)
+    }
   }
 
   useEffect(() => {
@@ -223,6 +262,8 @@ export default function App(): JSX.Element {
           open={sidebarOpen}
           onToggle={toggleSidebar}
           onSelectNote={handleSelectNote}
+          onDeleteNote={handleDeleteNote}
+          currentNotePath={currentNotePath}
           theme={theme}
         />
         <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} />

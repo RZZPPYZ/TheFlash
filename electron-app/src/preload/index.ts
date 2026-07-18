@@ -54,7 +54,13 @@ const flashAPI = {
     ipcRenderer.invoke(IPC.GET_TODAY_NOTES),
 
   loadNote: (filepath: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.LOAD_NOTE, filepath)
+    ipcRenderer.invoke(IPC.LOAD_NOTE, filepath),
+
+  updateNote: (filepath: string, text: string): Promise<SaveResult> =>
+    ipcRenderer.invoke(IPC.UPDATE_NOTE, filepath, text),
+
+  deleteNote: (filepath: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.DELETE_NOTE, filepath)
 }
 
 export type FlashAPI = typeof flashAPI
