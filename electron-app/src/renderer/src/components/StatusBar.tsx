@@ -102,7 +102,7 @@ export default function StatusBar({
               : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
           }`}
         >
-          Cancel
+          Close
         </button>
         <button
           type="button"

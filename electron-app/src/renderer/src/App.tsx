@@ -83,7 +83,31 @@ export default function App(): JSX.Element {
     }, 1500)
   }
 
-  async function doSave(): Promise<void> {
+  /** Save note but keep window open. Used by Ctrl+S and Save button. */
+  async function doSaveKeep(): Promise<void> {
+    if (saving) return
+    if (!text.trim()) return
+    setSaving(true)
+    try {
+      const result = await flash.saveNote(text)
+      setModified(false)
+      setIsDraft(false)
+      void flash.clearDraft()
+      refreshTodayInfo()
+      if (result) {
+        setSavedFlash(true)
+        if (savedFlashTimer.current) window.clearTimeout(savedFlashTimer.current)
+        savedFlashTimer.current = window.setTimeout(() => setSavedFlash(false), 1200)
+      }
+    } catch (e) {
+      console.error('[save] failed:', e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Save note and close window. Used by Ctrl+Enter. */
+  async function doSaveAndClose(): Promise<void> {
     if (saving) return
     if (!text.trim()) {
       setModified(false)
@@ -105,7 +129,7 @@ export default function App(): JSX.Element {
         window.setTimeout(() => flash.hideWindow(), 450)
       }
     } catch (e) {
-      console.error('[save] failed:', e)
+      console.error('[save-close] failed:', e)
     } finally {
       setSaving(false)
     }
@@ -132,8 +156,23 @@ export default function App(): JSX.Element {
     requestAnimationFrame(() => textareaRef.current?.focus())
   }
 
-  async function onCancel(): Promise<void> {
-    await maybeConfirmUnsaved()
+  /** Close flow: auto-save if modified & non-empty, then hide. */
+  async function handleClose(): Promise<boolean> {
+    if (modified && text.trim()) {
+      setSaving(true)
+      try {
+        await flash.saveNote(text)
+        void flash.clearDraft()
+      } catch (e) {
+        console.error('[auto-save] failed:', e)
+      } finally {
+        setSaving(false)
+      }
+      setModified(false)
+      setIsDraft(false)
+    }
+    flash.hideWindow()
+    return true
   }
 
   function toggleSidebar(): void {
@@ -150,35 +189,15 @@ export default function App(): JSX.Element {
     requestAnimationFrame(() => textareaRef.current?.focus())
   }
 
-  async function maybeConfirmUnsaved(): Promise<boolean> {
-    if (!modified || !text.trim()) {
-      flash.hideWindow()
-      return true
-    }
-    const choice = await flash.unsavedDialog()
-    if (choice === 'save') {
-      await doSave()
-      return true
-    }
-    if (choice === 'discard') {
-      setModified(false)
-      setIsDraft(false)
-      void flash.clearDraft()
-      flash.hideWindow()
-      return true
-    }
-    return false
-  }
-
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       const mod = e.ctrlKey || e.metaKey
       if (mod && (e.key === 's' || e.key === 'S')) {
         e.preventDefault()
-        void doSave()
+        void doSaveKeep()
       } else if (mod && e.key === 'Enter') {
         e.preventDefault()
-        void doSave()
+        void doSaveAndClose()
       } else if (mod && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
         void doNew()
@@ -187,7 +206,7 @@ export default function App(): JSX.Element {
         toggleSidebar()
       } else if (e.key === 'Escape') {
         e.preventDefault()
-        void onCancel()
+        void handleClose()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -197,7 +216,7 @@ export default function App(): JSX.Element {
 
   return (
     <div className="flex h-screen flex-col bg-base-900">
-      <TitleBar modified={modified} isDraft={isDraft} onClose={() => void onCancel()} />
+      <TitleBar modified={modified} isDraft={isDraft} onClose={() => void handleClose()} />
       <div className="flex flex-1 min-h-0">
         <NoteSidebar
           notes={todayNotes}
@@ -216,9 +235,9 @@ export default function App(): JSX.Element {
         todayCount={todayCount}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={toggleSidebar}
-        onSave={() => void doSave()}
+        onSave={() => void doSaveKeep()}
         onNew={() => void doNew()}
-        onCancel={() => void onCancel()}
+        onCancel={() => void handleClose()}
         onOpenFolder={() => void flash.showInFolder()}
       />
     </div>

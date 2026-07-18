@@ -19,7 +19,7 @@ export default function Editor({ value, onChange, textareaRef, theme }: Props): 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
-        placeholder="Type your thought…  (Ctrl+S to save, Esc to close)"
+        placeholder="Type your thought…  (Ctrl+S save, Ctrl+Enter save & close, Esc to close)"
         className={`editor-area h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-[13px] leading-[1.65] outline-none placeholder:text-ink-500/60 ${
           dark ? 'placeholder:text-ink-500/60' : 'placeholder:text-zinc-400'
         }`}
