@@ -24,9 +24,15 @@ env/
 .DS_Store
 Thumbs.db
 
+# Legacy (removed from project)
+python-legacy/
+
 # App
 notes/
 config/settings.json
 
 # Build outputs
 TheFlash.exe
+
+# Screenshots
+*-screenshot.png

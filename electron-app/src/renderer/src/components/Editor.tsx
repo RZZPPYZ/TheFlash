@@ -1,0 +1,29 @@
+interface Props {
+  value: string
+  onChange: (v: string) => void
+  textareaRef: React.RefObject<HTMLTextAreaElement>
+  theme: 'dark' | 'light'
+}
+
+/** The note editing surface — monospace, generous padding, light/dark aware. */
+export default function Editor({ value, onChange, textareaRef, theme }: Props): JSX.Element {
+  const dark = theme === 'dark'
+  return (
+    <div
+      className={`flex-1 overflow-hidden ${
+        dark ? 'bg-base-800 text-ink-100' : 'bg-white text-zinc-900'
+      }`}
+    >
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        spellCheck={false}
+        placeholder="Type your thought…  (Ctrl+S to save, Esc to close)"
+        className={`editor-area h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-[13px] leading-[1.65] outline-none placeholder:text-ink-500/60 ${
+          dark ? 'placeholder:text-ink-500/60' : 'placeholder:text-zinc-400'
+        }`}
+      />
+    </div>
+  )
+}

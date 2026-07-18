@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Frameless window: no native chrome, the app paints its own title bar. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-family: theme('fontFamily.ui');
+  -webkit-user-select: none;
+}
+
+/* Allow text selection inside the editor textarea only. */
+.editor-area {
+  -webkit-user-select: text;
+}
+
+/* Custom scrollbar — thin, neutral-gray. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a2e;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a40;
+  background-clip: padding-box;
+}
+
+/* Light overrides when the theme is light. */
+html:not(.dark) body {
+  color: #18181b;
+}

@@ -2,86 +2,92 @@
 
 **Lightning-fast idea capture for Windows.** Press a global hotkey, type your thought, save, and get back to what you were doing — all in seconds.
 
-## Philosophy
+This repository contains **two editions** of the same app:
 
-- **Instant** — pre-created window, hotkey summons in milliseconds
-- **Minimal** — no clutter, no tabs, no formatting. Just a text box.
-- **Lightweight** — ~15MB RAM, ~15MB .exe, zero bloat
-- **Reliable** — plain `.md` files on disk, always accessible
+| Edition | Path | Stack | Status |
+|---------|------|-------|--------|
+| **Electron** (current) | [`electron-app/`](electron-app) | Electron + React + TypeScript + Tailwind | v0.2.0 — actively developed |
+| **Python** (legacy) | [`python-legacy/`](python-legacy) | Python + tkinter + Win32 | v0.1.0 — archived, still runs |
 
-## Quick Start
+Both editions share the **same user data** — `%APPDATA%/TheFlash/config.json` and `Documents/TheFlash_Notes/*.md` — so notes and settings move freely between them.
+
+---
+
+## Why two editions?
+
+The Python/tkinter edition works but tkinter's look-and-feel is the bottleneck. The Electron edition keeps identical core behaviour (instant capture, plain `.md` notes, system tray, single instance, global hotkey) while giving the UI a modern neutral-gray redesign and fixing several bugs that were inherent to the tkinter/Win32 mixing (see `python-legacy/` for the original code).
+
+The Python source is kept for reference and as a fallback; nothing was deleted.
+
+---
+
+## Quick start (Electron edition)
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run The Flash
-python main.py
-# or
-python -m theflash
+cd electron-app
+npm install
+npm run dev      # launch with hot reload
 ```
 
-The app starts silently in the background. Press **Ctrl+Shift+F** to summon the editor.
+The app starts and briefly shows the editor. Press **Ctrl+Shift+F** (default hotkey, customizable) to summon it from any application.
 
-## How It Works
-
-1. **Press `Ctrl+Shift+F`** (default hotkey, customizable) — editor pops up instantly, centered on your cursor
-2. **Type your thought** — plain text, markdown-friendly
-3. **`Ctrl+S` or `Ctrl+Enter`** — saves and hides the window
-4. **`Escape`** — hides the window (prompts to save if you have unsaved text)
-5. Your note is saved to `Documents/TheFlash_Notes/YYYY-MM-DD_HH-MM-SS.md`
-
-## Features
-
-- 🌐 **Global hotkey** — works from any application
-- 📝 **Markdown notes** — saved as `.md` files, readable by any editor
-- 🖥️ **System tray** — lives quietly in your taskbar
-- 🎨 **Dark theme** — easy on the eyes
-- 📌 **Always on top** — never lose the editor behind other windows
-- 🔒 **Single instance** — second launch brings the existing window forward
-- ⚙️ **Customizable** — change hotkey, save path, and more via `config/settings.json`
-
-## Keyboard Shortcuts
+### Keyboard shortcuts
 
 | Key | Action |
 |-----|--------|
 | `Ctrl+Shift+F` | Toggle editor (global, customizable) |
-| `Ctrl+S` | Save and hide |
-| `Ctrl+Enter` | Save and hide |
-| `Escape` | Hide (prompt if unsaved) |
-| `Ctrl+A` | Select all |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` | Redo |
+| `Ctrl+S` / `Ctrl+Enter` | Save and hide |
+| `Escape` | Hide (prompts if unsaved) |
+| `Ctrl+A` / `Ctrl+Z` / `Ctrl+Y` | Select all / undo / redo (native) |
+
+### Build an installer
+
+```bash
+cd electron-app
+npm run build:win   # produces dist/ with an NSIS installer
+```
+
+---
+
+## Quick start (Python legacy edition)
+
+```bash
+cd python-legacy
+pip install -r requirements.txt
+python main.py
+```
+
+See [`python-legacy/README.md`](python-legacy/README.md) for the original documentation.
+
+---
 
 ## Configuration
 
-Edit `%APPDATA%/TheFlash/config.json`:
+Edit `%APPDATA%/TheFlash/config.json` (shared by both editions):
 
 ```json
 {
-  "hotkey": {
-    "modifiers": ["Ctrl", "Shift"],
-    "key": "F"
-  },
-  "save_path": "C:\\Users\\...\\Documents\\TheFlash_Notes",
+  "version": 1,
+  "hotkey": { "modifiers": ["Ctrl", "Shift"], "key": "F" },
+  "save_path": "C:\\Users\\<you>\\Documents\\TheFlash_Notes",
+  "window_geometry": { "x": null, "y": null, "width": 520, "height": 400 },
   "always_on_top": true,
   "auto_save_on_close": false,
+  "start_minimized_to_tray": true,
   "theme": "dark"
 }
 ```
 
-## Build Standalone .exe
+Notes are saved as `Documents/TheFlash_Notes/YYYY-MM-DD_HH-MM-SS.md`.
 
-```bash
-pip install pyinstaller
-pyinstaller --windowed --onedir --name TheFlash --icon=assets/icon.ico main.py
-```
+---
 
-## Tech Stack
+## Tech stack (Electron edition)
 
-- **Python 3.13** + **tkinter** (built-in) — zero UI dependencies
-- **pynput** — global keyboard hook
-- **pystray** + **Pillow** — system tray icon
+- **Electron** — main process (window, tray, global hotkey, single instance)
+- **electron-vite** + **React 18** + **TypeScript**
+- **Tailwind CSS** — neutral-gray modern theme
+- **electron-builder** — Windows NSIS installer
 
 ## License
 
