@@ -3,10 +3,11 @@ interface Props {
   onChange: (v: string) => void
   textareaRef: React.RefObject<HTMLTextAreaElement>
   theme: 'dark' | 'light'
+  fontSize: number
 }
 
 /** The note editing surface — monospace, generous padding, light/dark aware. */
-export default function Editor({ value, onChange, textareaRef, theme }: Props): JSX.Element {
+export default function Editor({ value, onChange, textareaRef, theme, fontSize }: Props): JSX.Element {
   const dark = theme === 'dark'
   return (
     <div
@@ -20,7 +21,8 @@ export default function Editor({ value, onChange, textareaRef, theme }: Props): 
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
         placeholder="Type your thought…  (Ctrl+S save, Ctrl+Enter save & close, Esc to close)"
-        className={`editor-area h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-[13px] leading-[1.65] outline-none placeholder:text-ink-500/60 ${
+        style={{ fontSize: `${fontSize}px` }}
+        className={`editor-area h-full w-full resize-none bg-transparent px-5 py-4 font-mono leading-[1.65] outline-none placeholder:text-ink-500/60 ${
           dark ? 'placeholder:text-ink-500/60' : 'placeholder:text-zinc-400'
         }`}
       />

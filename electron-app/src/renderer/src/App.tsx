@@ -17,6 +17,10 @@ export default function App(): JSX.Element {
   const [todayNotes, setTodayNotes] = useState<TodayNote[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentNotePath, setCurrentNotePath] = useState<string | null>(null)
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('theflash-fontsize')
+    return saved ? parseInt(saved, 10) : 13
+  })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const savedFlashTimer = useRef<number | null>(null)
   const draftTimerRef = useRef<number | null>(null)
@@ -70,6 +74,22 @@ export default function App(): JSX.Element {
       setSidebarOpen(true)
     }
   }, [todayNotes, isDraft])
+
+  // Ctrl+scroll to zoom font size.
+  useEffect(() => {
+    function onWheel(e: WheelEvent): void {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      setFontSize((prev) => {
+        const next = e.deltaY < 0 ? prev + 1 : prev - 1
+        const clamped = Math.max(9, Math.min(32, next))
+        localStorage.setItem('theflash-fontsize', String(clamped))
+        return clamped
+      })
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [])
 
   function handleChange(v: string): void {
     setText(v)
@@ -266,7 +286,7 @@ export default function App(): JSX.Element {
           currentNotePath={currentNotePath}
           theme={theme}
         />
-        <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} />
+        <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} fontSize={fontSize} />
       </div>
       <StatusBar
         text={text}
