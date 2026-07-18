@@ -21,6 +21,7 @@ export default function App(): JSX.Element {
     const saved = localStorage.getItem('theflash-fontsize')
     return saved ? parseInt(saved, 10) : 13
   })
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const savedFlashTimer = useRef<number | null>(null)
   const draftTimerRef = useRef<number | null>(null)
@@ -242,9 +243,40 @@ export default function App(): JSX.Element {
         setModified(false)
         setCurrentNotePath(null)
       }
+      setSelectedPaths((prev) => {
+        const next = new Set(prev)
+        next.delete(filepath)
+        return next
+      })
       refreshTodayInfo()
     } catch (e) {
       console.error('[delete] failed:', e)
+    }
+  }
+
+  async function handleMergeNotes(notes: TodayNote[]): Promise<void> {
+    if (notes.length < 2) return
+    try {
+      const contents = await Promise.all(
+        notes.map((n) => flash.loadNote(n.path))
+      )
+      const merged = contents.join('\n\n---\n\n')
+      // Save merged content as a new note.
+      const result = await flash.saveNote(merged)
+      // Delete the original notes.
+      await Promise.all(notes.map((n) => flash.deleteNote(n.path)))
+      // Load the merged note into the editor.
+      if (result) {
+        setText(merged)
+        setModified(false)
+        setCurrentNotePath(result.path)
+        setIsDraft(false)
+      }
+      setSelectedPaths(new Set())
+      refreshTodayInfo()
+      requestAnimationFrame(() => textareaRef.current?.focus())
+    } catch (e) {
+      console.error('[merge] failed:', e)
     }
   }
 
@@ -260,6 +292,12 @@ export default function App(): JSX.Element {
       } else if (mod && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
         void doNew()
+      } else if (mod && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault()
+        if (selectedPaths.size >= 2) {
+          const selected = todayNotes.filter((n) => selectedPaths.has(n.path))
+          void handleMergeNotes(selected)
+        }
       } else if (mod && e.shiftKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault()
         toggleSidebar()
@@ -283,6 +321,7 @@ export default function App(): JSX.Element {
           onToggle={toggleSidebar}
           onSelectNote={handleSelectNote}
           onDeleteNote={handleDeleteNote}
+          onMergeNotes={handleMergeNotes}
           currentNotePath={currentNotePath}
           theme={theme}
         />

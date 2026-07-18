@@ -7,6 +7,7 @@ interface Props {
   onToggle: () => void
   onSelectNote: (note: TodayNote, content: string) => void
   onDeleteNote: (filepath: string) => void
+  onMergeNotes: (notes: TodayNote[]) => void
   currentNotePath: string | null
   theme: 'dark' | 'light'
 }
@@ -17,18 +18,39 @@ export default function NoteSidebar({
   onToggle,
   onSelectNote,
   onDeleteNote,
+  onMergeNotes,
   currentNotePath,
   theme
 }: Props): JSX.Element {
   const dark = theme === 'dark'
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
 
-  // Clear hover when sidebar closes.
+  // Clear selections when sidebar closes.
   useEffect(() => {
-    if (!open) setHoveredIdx(null)
+    if (!open) {
+      setHoveredIdx(null)
+      setSelectedPaths(new Set())
+    }
   }, [open])
 
-  async function handleSelect(idx: number, note: TodayNote): Promise<void> {
+  async function handleClick(e: React.MouseEvent, note: TodayNote): Promise<void> {
+    // Ctrl+click: toggle multi-select
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedPaths((prev) => {
+        const next = new Set(prev)
+        if (next.has(note.path)) {
+          next.delete(note.path)
+        } else {
+          next.add(note.path)
+        }
+        return next
+      })
+      return
+    }
+
+    // Normal click without Ctrl: clear selection, load note
+    setSelectedPaths(new Set())
     try {
       const content = await window.flash.loadNote(note.path)
       onSelectNote(note, content)
@@ -37,8 +59,23 @@ export default function NoteSidebar({
 
   function handleDelete(e: React.MouseEvent, filepath: string): void {
     e.stopPropagation()
+    setSelectedPaths((prev) => {
+      const next = new Set(prev)
+      next.delete(filepath)
+      return next
+    })
     void onDeleteNote(filepath)
   }
+
+  function doMerge(): void {
+    const selected = notes.filter((n) => selectedPaths.has(n.path))
+    if (selected.length >= 2) {
+      onMergeNotes(selected)
+      setSelectedPaths(new Set())
+    }
+  }
+
+  const canMerge = selectedPaths.size >= 2
 
   return (
     <div
@@ -54,39 +91,70 @@ export default function NoteSidebar({
         <span className={`text-[11px] font-semibold uppercase tracking-wider ${
           dark ? 'text-ink-300' : 'text-zinc-500'
         }`}>
-          Today ({notes.length})
+          {canMerge ? `Merge (${selectedPaths.size})` : `Today (${notes.length})`}
         </span>
-        <button
-          type="button"
-          onClick={onToggle}
-          className={`grid h-5 w-5 place-items-center rounded transition-colors ${
-            dark ? 'hover:bg-base-700 text-ink-300' : 'hover:bg-zinc-200 text-zinc-500'
-          }`}
-          title="Collapse sidebar"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M7 1L3 5l4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          {canMerge && (
+            <button
+              type="button"
+              onClick={doMerge}
+              className={`grid h-5 w-5 place-items-center rounded transition-colors ${
+                dark ? 'hover:bg-accent/20 text-accent' : 'hover:bg-amber-100 text-amber-600'
+              }`}
+              title="Merge selected notes (Ctrl+E)"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <path d="M1 1h3v3H1zM8 1h3v3H8zM1 8h3v3H1zM8 8h3v3H8z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" fill="none" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`grid h-5 w-5 place-items-center rounded transition-colors ${
+              dark ? 'hover:bg-base-700 text-ink-300' : 'hover:bg-zinc-200 text-zinc-500'
+            }`}
+            title="Collapse sidebar"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M7 1L3 5l4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Merge hint */}
+      {selectedPaths.size > 0 && (
+        <div className={`px-3 py-1 text-[10px] ${
+          dark ? 'text-ink-500 bg-base-900/30' : 'text-zinc-400 bg-zinc-100/50'
+        }`}>
+          Ctrl+click to select, Ctrl+E to merge
+        </div>
+      )}
 
       {/* Note list */}
       <div className="flex-1 overflow-y-auto">
         {notes.map((note, idx) => {
           const isActive = currentNotePath === note.path
+          const isSelected = selectedPaths.has(note.path)
           return (
             <div
               key={note.filename}
-              className={`group flex items-start gap-1 px-3 py-2 cursor-pointer transition-colors ${
+              className={`group flex items-start gap-1 px-3 py-2 cursor-pointer transition-colors border-l-2 ${
                 dark
-                  ? isActive
-                    ? 'bg-accent/15 border-l-2 border-accent'
-                    : 'hover:bg-base-800 border-l-2 border-transparent'
-                  : isActive
-                    ? 'bg-amber-50 border-l-2 border-amber-400'
-                    : 'hover:bg-zinc-100 border-l-2 border-transparent'
+                  ? isSelected
+                    ? 'bg-accent/25 border-accent'
+                    : isActive
+                      ? 'bg-accent/15 border-accent'
+                      : 'hover:bg-base-800 border-transparent'
+                  : isSelected
+                    ? 'bg-amber-100 border-amber-400'
+                    : isActive
+                      ? 'bg-amber-50 border-amber-400'
+                      : 'hover:bg-zinc-100 border-transparent'
               }`}
-              onClick={() => void handleSelect(idx, note)}
+              onClick={(e) => void handleClick(e, note)}
               onMouseEnter={() => setHoveredIdx(idx)}
               onMouseLeave={() => setHoveredIdx(null)}
             >
@@ -103,7 +171,7 @@ export default function NoteSidebar({
                 </span>
               </div>
               {/* Delete button — visible on hover */}
-              {(hoveredIdx === idx || isActive) && (
+              {(hoveredIdx === idx || isActive) && !isSelected && (
                 <button
                   type="button"
                   onClick={(e) => handleDelete(e, note.path)}
@@ -118,6 +186,17 @@ export default function NoteSidebar({
                     <path d="M1.5 2.5h7M3.5 2.5V1.5h3v1M3 2.5l.5 5h3l.5-5" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
+              )}
+              {/* Selection checkbox for multi-select */}
+              {isSelected && (
+                <span className={`shrink-0 grid h-5 w-5 place-items-center rounded ${
+                  dark ? 'text-accent' : 'text-amber-500'
+                }`}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <rect x="1" y="1" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" />
+                    <path d="M3.5 6l2 2 3-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
               )}
             </div>
           )
