@@ -15,6 +15,7 @@
 - **Today sidebar** — collapsible left panel lists today's saved notes; click to reload and keep editing
 - **In-place save** — editing a saved note updates it instead of creating duplicates
 - **Delete notes** — hover any sidebar item to delete
+- **Merge notes** — `Ctrl+click` to multi-select sidebar notes, then `Ctrl+E` to merge them
 - **Font zoom** — `Ctrl+Scroll` to adjust editor font size (9–32px, persisted)
 - **Dark / Light theme** — toggled via config
 - **System tray** — minimized to tray, always one hotkey away
@@ -28,6 +29,7 @@
 | `Ctrl+Enter` | Save and close |
 | `Ctrl+N` | Save current & start new note |
 | `Ctrl+Shift+H` | Toggle today's sidebar |
+| `Ctrl+E` | Merge selected sidebar notes |
 | `Ctrl+Scroll` | Zoom editor font |
 | `Escape` | Auto-save & close |
 
