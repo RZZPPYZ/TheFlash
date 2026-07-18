@@ -1,4 +1,4 @@
-import type { AppConfig, SaveResult, UnsavedChoice, TodayNote } from '../../shared/types'
+import type { AppConfig, SaveResult, UnsavedChoice, TodayNote, ThemeName } from '../../shared/types'
 
 interface FlashAPI {
   saveNote: (text: string) => Promise<SaveResult | null>
@@ -16,6 +16,7 @@ interface FlashAPI {
   loadNote: (filepath: string) => Promise<string>
   updateNote: (filepath: string, text: string) => Promise<SaveResult>
   deleteNote: (filepath: string) => Promise<boolean>
+  setTheme: (theme: ThemeName) => Promise<void>
 }
 
 declare global {

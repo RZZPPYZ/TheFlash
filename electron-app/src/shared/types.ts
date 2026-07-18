@@ -60,7 +60,8 @@ export const IPC = {
   GET_TODAY_NOTES: 'flash:get-today-notes', // renderer → main: list today's notes with preview
   LOAD_NOTE: 'flash:load-note', // renderer → main: read note file content
   UPDATE_NOTE: 'flash:update-note', // renderer → main: update existing note in-place
-  DELETE_NOTE: 'flash:delete-note' // renderer → main: delete a note file
+  DELETE_NOTE: 'flash:delete-note', // renderer → main: delete a note file
+  SET_THEME: 'flash:set-theme' // renderer → main: switch dark/light theme
 } as const
 
 export interface SaveResult {

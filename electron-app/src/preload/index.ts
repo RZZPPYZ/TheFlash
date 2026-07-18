@@ -4,7 +4,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type AppConfig, type UnsavedChoice, type SaveResult, type TodayNote } from '../shared/types'
+import { IPC, type AppConfig, type UnsavedChoice, type SaveResult, type TodayNote, type ThemeName } from '../shared/types'
 
 const flashAPI = {
   saveNote: (text: string): Promise<SaveResult | null> =>
@@ -60,7 +60,10 @@ const flashAPI = {
     ipcRenderer.invoke(IPC.UPDATE_NOTE, filepath, text),
 
   deleteNote: (filepath: string): Promise<boolean> =>
-    ipcRenderer.invoke(IPC.DELETE_NOTE, filepath)
+    ipcRenderer.invoke(IPC.DELETE_NOTE, filepath),
+
+  setTheme: (theme: ThemeName): Promise<void> =>
+    ipcRenderer.invoke(IPC.SET_THEME, theme)
 }
 
 export type FlashAPI = typeof flashAPI

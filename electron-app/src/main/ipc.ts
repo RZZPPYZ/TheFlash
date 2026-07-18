@@ -10,7 +10,7 @@
 
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import { getConfig, getNoteManager, getDraftManager } from './state'
-import { IPC, type UnsavedChoice, type SaveResult } from '../shared/types'
+import { IPC, type UnsavedChoice, type SaveResult, type ThemeName } from '../shared/types'
 import { hideWindow, saveGeometry } from './window'
 
 export function registerIpc(): void {
@@ -86,5 +86,9 @@ export function registerIpc(): void {
 
   ipcMain.handle(IPC.DELETE_NOTE, async (_e, filepath: string): Promise<boolean> => {
     return getNoteManager().delete(filepath)
+  })
+
+  ipcMain.handle(IPC.SET_THEME, async (_e, theme: ThemeName): Promise<void> => {
+    getConfig().set({ theme })
   })
 }

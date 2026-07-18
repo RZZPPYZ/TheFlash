@@ -4,7 +4,7 @@ import Editor from './components/Editor'
 import StatusBar from './components/StatusBar'
 import NoteSidebar from './components/NoteSidebar'
 import { flash } from './lib/ipc'
-import type { AppConfig, TodayNote } from '../../shared/types'
+import type { AppConfig, TodayNote, ThemeName } from '../../shared/types'
 
 export default function App(): JSX.Element {
   const [text, setText] = useState('')
@@ -227,6 +227,12 @@ export default function App(): JSX.Element {
     setSidebarOpen((v) => !v)
   }
 
+  function toggleTheme(): void {
+    const next: ThemeName = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    void flash.setTheme(next)
+  }
+
   function handleSelectNote(note: TodayNote, content: string): void {
     setText(content)
     setModified(false)
@@ -313,7 +319,7 @@ export default function App(): JSX.Element {
 
   return (
     <div className="flex h-screen flex-col bg-base-900">
-      <TitleBar modified={modified} isDraft={isDraft} onClose={() => void handleClose()} />
+      <TitleBar modified={modified} isDraft={isDraft} theme={theme} onToggleTheme={toggleTheme} onClose={() => void handleClose()} />
       <div className="flex flex-1 min-h-0">
         <NoteSidebar
           notes={todayNotes}
