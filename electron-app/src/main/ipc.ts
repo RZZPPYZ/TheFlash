@@ -79,4 +79,12 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.LOAD_NOTE, async (_e, filepath: string): Promise<string> => {
     return getNoteManager().load(filepath)
   })
+
+  ipcMain.handle(IPC.UPDATE_NOTE, async (_e, filepath: string, text: string): Promise<SaveResult> => {
+    return getNoteManager().update(filepath, text)
+  })
+
+  ipcMain.handle(IPC.DELETE_NOTE, async (_e, filepath: string): Promise<boolean> => {
+    return getNoteManager().delete(filepath)
+  })
 }

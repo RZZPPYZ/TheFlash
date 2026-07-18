@@ -63,6 +63,12 @@ export class NoteManager {
     return { path: filepath }
   }
 
+  /** Update an existing note file in-place. */
+  async update(filepath: string, text: string): Promise<SaveOutcome> {
+    await fs.writeFile(filepath, text, 'utf-8')
+    return { path: filepath }
+  }
+
   /** Count today's saved .md files in save_path. */
   getTodayCount(): number {
     const prefix = todayPrefix()

@@ -58,7 +58,9 @@ export const IPC = {
   RESTORE_DRAFT: 'flash:restore-draft', // main → renderer: restore draft text
   GET_TODAY_NOTE_COUNT: 'flash:get-today-note-count', // renderer → main: count today's notes
   GET_TODAY_NOTES: 'flash:get-today-notes', // renderer → main: list today's notes with preview
-  LOAD_NOTE: 'flash:load-note' // renderer → main: read note file content
+  LOAD_NOTE: 'flash:load-note', // renderer → main: read note file content
+  UPDATE_NOTE: 'flash:update-note', // renderer → main: update existing note in-place
+  DELETE_NOTE: 'flash:delete-note' // renderer → main: delete a note file
 } as const
 
 export interface SaveResult {
