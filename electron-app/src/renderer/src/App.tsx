@@ -109,7 +109,22 @@ export default function App(): JSX.Element {
   /** Save: update existing note in-place, or create new if none tracked. */
   async function doSaveKeep(): Promise<void> {
     if (saving) return
-    if (!text.trim()) return
+    // If editing an existing note and content was cleared, delete the note file.
+    if (!text.trim()) {
+      if (currentNotePath) {
+        try {
+          await flash.deleteNote(currentNotePath)
+        } catch (e) {
+          console.error('[save-delete] failed:', e)
+        }
+        setCurrentNotePath(null)
+      }
+      setModified(false)
+      setIsDraft(false)
+      void flash.clearDraft()
+      refreshTodayInfo()
+      return
+    }
     setSaving(true)
     try {
       let result
@@ -139,7 +154,16 @@ export default function App(): JSX.Element {
   async function doSaveAndClose(): Promise<void> {
     if (saving) return
     if (!text.trim()) {
+      if (currentNotePath) {
+        try {
+          await flash.deleteNote(currentNotePath)
+        } catch (e) {
+          console.error('[save-close-delete] failed:', e)
+        }
+        setCurrentNotePath(null)
+      }
       setModified(false)
+      setIsDraft(false)
       void flash.clearDraft()
       flash.hideWindow()
       return
