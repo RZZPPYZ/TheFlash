@@ -1,163 +1,285 @@
-"""Global hotkey manager — pynput-based listener bridged to tkinter's main loop.
+"""Global hotkey manager — Win32 RegisterHotKey via ctypes.
+
+Unlike pynput (which uses SetWindowsHookEx and can be blocked by
+Windows security), RegisterHotKey is a kernel-level API that always works,
+requires no admin rights, and handles key-repeat suppression natively.
 
 Architecture:
-    [Background Thread: pynput Listener]
-        │
-        │  on_press/on_release → track pressed_keys set
-        │  When hotkey combo matches → queue.put("toggle")
-        │
-        ▼
-    [queue.Queue]  ←── Thread-safe bridge
-        │
-        ▼
-    [Main Thread: tkinter event loop]
-        │
-        │  root.after(50, _poll_queue)
-        │  If "toggle" in queue → callback()
-        │
-        ▼
+    [Win32 OS] → RegisterHotKey(hwnd, id=1, mods, vk_code)
+                    │
+                    ▼
+    [WndProc subclass] → intercepts WM_HOTKEY (0x0312)
+                    │
+                    ▼
+    [root.after_idle(callback)] → thread-safe bridge to tkinter
+                    │
+                    ▼
     [EditorWindow.show() or .hide()]
 """
 
-import queue
-import threading
+import ctypes
+import tkinter as tk
+from ctypes import wintypes, WINFUNCTYPE
 from typing import Callable, Optional
 
-from pynput.keyboard import Key, KeyCode, Listener
+# ------------------------------------------------------------------
+# Win32 constants
+# ------------------------------------------------------------------
 
+WM_HOTKEY = 0x0312
+GWLP_WNDPROC = -4
 
-# Canonical modifier names → pynput key objects
-MODIFIER_MAP: dict[str, Key | KeyCode] = {
-    "Ctrl":  Key.ctrl,
-    "Ctrl_L": Key.ctrl_l,
-    "Ctrl_R": Key.ctrl_r,
-    "Alt":   Key.alt,
-    "Alt_L":  Key.alt_l,
-    "Alt_R":  Key.alt_r,
-    "Shift": Key.shift,
-    "Shift_L": Key.shift_l,
-    "Shift_R": Key.shift_r,
-    "Win":   Key.cmd,
-    "Win_L":  Key.cmd_l,
-    "Win_R":  Key.cmd_r,
+# Modifier flags for RegisterHotKey
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
+MOD_NOREPEAT = 0x4000  # Suppress key-repeat so holding the keys only fires once
+
+MODIFIER_FLAGS: dict[str, int] = {
+    "Ctrl": MOD_CONTROL,
+    "Alt": MOD_ALT,
+    "Shift": MOD_SHIFT,
+    "Win": MOD_WIN,
 }
 
 
-def _key_to_canonical(k: Key | KeyCode) -> Optional[str]:
-    """Convert a pynput key to a canonical string, e.g. Key.ctrl → 'Ctrl'."""
-    if k == Key.ctrl or k == Key.ctrl_l or k == Key.ctrl_r:
-        return "Ctrl"
-    if k == Key.alt or k == Key.alt_l or k == Key.alt_r:
-        return "Alt"
-    if k == Key.shift or k == Key.shift_l or k == Key.shift_r:
-        return "Shift"
-    if k == Key.cmd or k == Key.cmd_l or k == Key.cmd_r:
-        return "Win"
-    if isinstance(k, KeyCode) and k.vk is not None:
-        # Printable key or special key with vk
-        return k.char.upper() if k.char else f"VK_{k.vk}"
-    if isinstance(k, Key):
-        return k.name.upper()  # e.g. 'F1', 'ESC', 'TAB'
-    return None
+def _key_to_vk(key: str) -> int:
+    """Convert a key name string to a Windows virtual-key code.
+
+    >>> _key_to_vk('F')   → 0x46
+    >>> _key_to_vk('1')    → 0x31
+    >>> _key_to_vk('F12')  → 0x7B
+    >>> _key_to_vk('Esc')  → 0x1B
+    """
+    k = key.upper()
+    # Single letter A-Z
+    if len(k) == 1 and "A" <= k <= "Z":
+        return ord(k)
+    # Single digit 0-9
+    if len(k) == 1 and "0" <= k <= "9":
+        return ord(k)
+    # Function keys F1-F24
+    if k.startswith("F"):
+        try:
+            n = int(k[1:])
+            if 1 <= n <= 12:
+                return 0x6F + n  # VK_F1 = 0x70
+        except ValueError:
+            pass
+    # Named keys
+    named: dict[str, int] = {
+        "ESC": 0x1B,
+        "ESCAPE": 0x1B,
+        "TAB": 0x09,
+        "SPACE": 0x20,
+        "ENTER": 0x0D,
+        "RETURN": 0x0D,
+        "BACKSPACE": 0x08,
+        "DELETE": 0x2E,
+        "INSERT": 0x2D,
+        "HOME": 0x24,
+        "END": 0x23,
+        "PAGEUP": 0x21,
+        "PAGEDOWN": 0x22,
+        "UP": 0x26,
+        "DOWN": 0x28,
+        "LEFT": 0x25,
+        "RIGHT": 0x27,
+        "PRINTSCREEN": 0x2C,
+        "SCROLLLOCK": 0x91,
+        "PAUSE": 0x13,
+        "CAPSLOCK": 0x14,
+        "NUMLOCK": 0x90,
+    }
+    if k in named:
+        return named[k]
+    raise ValueError(f"Unknown key: {key!r}")
+
+
+def _parse_modifiers(modifiers: list[str]) -> int:
+    """Convert a list of modifier names to a RegisterHotKey modifier mask."""
+    mask = MOD_NOREPEAT
+    for m in modifiers:
+        flag = MODIFIER_FLAGS.get(m.capitalize())
+        if flag is None:
+            raise ValueError(f"Unknown modifier: {m!r}")
+        mask |= flag
+    return mask
+
+
+# ------------------------------------------------------------------
+# HotkeyManager
+# ------------------------------------------------------------------
 
 
 class HotkeyManager:
-    """Listens globally for a configurable key combination and fires a callback."""
+    """Registers a global hotkey via Win32 RegisterHotKey and fires
+    a callback when the combination is pressed.  The callback is
+    always invoked on the tkinter main thread via root.after_idle().
+    """
+
+    # Per-process hotkey IDs — we only ever register one (id=1).
+    HOTKEY_ID = 1
 
     def __init__(self, root, callback: Callable[[], None]):
         self._root = root
         self._callback = callback
-        self._queue: queue.Queue = queue.Queue()
-        self._listener: Optional[Listener] = None
-        self._pressed: set = set()
-        self._hotkey_mods: set[str] = set()
-        self._hotkey_key: Optional[str] = None
-        self._running = False
+        self._hwnd: Optional[int] = None
+        self._registered = False
+        self._modifiers: list[str] = []
+        self._key: str = ""
+
+        # Prevent garbage-collection of the ctypes WNDPROC callback.
+        # If Python GCs the callback, the OS calls a freed pointer → crash.
+        self._wndproc_fn = None
+        self._original_wndproc = None
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def start(self, modifiers: list[str], key: str):
-        """Register and start listening for the hotkey combination."""
-        self._hotkey_mods = set(m.lower() for m in modifiers)
-        self._hotkey_key = key.lower()
+        """Register the global hotkey and subclass the window procedure."""
+        self._modifiers = list(modifiers)
+        self._key = key
 
-        self._listener = Listener(
-            on_press=self._on_press,
-            on_release=self._on_release,
-        )
-        self._listener.start()
-        self._running = True
+        # 1. Get native HWND from the tkinter root window
+        self._hwnd = self._get_hwnd()
+        if not self._hwnd:
+            raise RuntimeError("Cannot obtain native window handle")
 
-        # Start polling the queue from tkinter's event loop
-        self._poll_queue()
+        # 2. Register the hotkey with the OS
+        vk = _key_to_vk(key)
+        mod_mask = _parse_modifiers(modifiers)
+
+        user32 = ctypes.windll.user32
+        ok = user32.RegisterHotKey(self._hwnd, self.HOTKEY_ID, mod_mask, vk)
+        if not ok:
+            err = ctypes.windll.kernel32.GetLastError()
+            hotkey_str = self.hotkey_string
+            if err == 1409:  # ERROR_HOTKEY_ALREADY_REGISTERED
+                raise RuntimeError(
+                    f"Hotkey {hotkey_str} is already registered "
+                    f"by another application. Choose a different combination."
+                )
+            raise RuntimeError(
+                f"RegisterHotKey failed with error {err} for {hotkey_str}"
+            )
+
+        # 3. Subclass the window procedure to catch WM_HOTKEY
+        self._subclass_wndproc()
+
+        self._registered = True
 
     def stop(self):
-        """Stop the listener and clean up."""
-        self._running = False
-        if self._listener:
-            self._listener.stop()
-            self._listener = None
+        """Unregister the hotkey and restore the original WndProc."""
+        if not self._registered:
+            return
+
+        user32 = ctypes.windll.user32
+
+        # Unregister hotkey
+        if self._hwnd:
+            user32.UnregisterHotKey(self._hwnd, self.HOTKEY_ID)
+
+        # Restore original WndProc
+        if self._original_wndproc is not None and self._hwnd:
+            user32.SetWindowLongPtrW(
+                wintypes.HWND(self._hwnd),
+                GWLP_WNDPROC,
+                self._original_wndproc,
+            )
+
+        self._wndproc_fn = None
+        self._original_wndproc = None
+        self._registered = False
 
     def reregister(self, modifiers: list[str], key: str):
         """Change the hotkey while running."""
-        self._hotkey_mods = set(m.lower() for m in modifiers)
-        self._hotkey_key = key.lower()
-        self._pressed.clear()
+        self._modifiers = list(modifiers)
+        self._key = key
+
+        if self._hwnd:
+            ctypes.windll.user32.UnregisterHotKey(self._hwnd, self.HOTKEY_ID)
+
+        vk = _key_to_vk(key)
+        mod_mask = _parse_modifiers(modifiers)
+
+        ok = ctypes.windll.user32.RegisterHotKey(
+            self._hwnd, self.HOTKEY_ID, mod_mask, vk
+        )
+        if not ok:
+            err = ctypes.windll.kernel32.GetLastError()
+            raise RuntimeError(
+                f"Hotkey re-registration failed with error {err}"
+            )
 
     @property
-    def current_hotkey(self) -> str:
-        """Return current hotkey as a human-readable string, e.g. 'Ctrl+Shift+F'."""
-        mods = sorted(self._hotkey_mods)
-        return "+".join(m.capitalize() for m in mods + [self._hotkey_key.upper()])
+    def hotkey_string(self) -> str:
+        """Return current hotkey as 'Ctrl+Shift+F'."""
+        return "+".join(self._modifiers + [self._key])
 
     # ------------------------------------------------------------------
-    # Internal: keyboard event handling (runs on pynput thread)
+    # Internal helpers
     # ------------------------------------------------------------------
 
-    def _on_press(self, key):
-        canonical = _key_to_canonical(key)
-        if canonical:
-            self._pressed.add(canonical.lower())
-            self._check_combo()
+    def _get_hwnd(self) -> Optional[int]:
+        """Extract the native HWND from a tkinter root window.
 
-    def _on_release(self, key):
-        canonical = _key_to_canonical(key)
-        if canonical:
-            self._pressed.discard(canonical.lower())
-
-    def _check_combo(self):
-        """Check if the required hotkey combination is currently pressed."""
-        if not self._hotkey_mods or not self._hotkey_key:
-            return
-
-        # All required modifiers must be pressed
-        if not self._hotkey_mods.issubset(self._pressed):
-            return
-
-        # The target key must be pressed AND the last key pressed
-        if self._hotkey_key not in self._pressed:
-            return
-
-        # Prevent rapid re-trigger: clear the target key so it must be
-        # released and re-pressed to fire again
-        self._pressed.discard(self._hotkey_key)
-        self._queue.put("toggle")
-
-    # ------------------------------------------------------------------
-    # Internal: queue polling (runs on tkinter main thread)
-    # ------------------------------------------------------------------
-
-    def _poll_queue(self):
-        """Drain the queue and fire callbacks. Re-schedules itself via root.after."""
+        On Windows, root.frame() returns something like '0x1a0b2c'.
+        We parse that hex string, then use GetAncestor(GA_ROOT) to
+        get the true top-level HWND that can receive WM_HOTKEY messages.
+        """
         try:
-            while True:
-                msg = self._queue.get_nowait()
-                if msg == "toggle":
-                    self._callback()
-        except queue.Empty:
-            pass
+            frame_hex = self._root.frame()
+            hwnd = int(frame_hex, 16)
+        except (ValueError, tk.TclError):
+            return None
 
-        if self._running:
-            self._root.after(25, self._poll_queue)  # 25ms poll rate = 40Hz
+        # GA_ROOT = 2 → get the root ancestor window
+        user32 = ctypes.windll.user32
+        root_hwnd = user32.GetAncestor(hwnd, 2)  # GA_ROOT
+        if root_hwnd:
+            return root_hwnd
+        return hwnd
+
+    def _subclass_wndproc(self):
+        """Install a custom WndProc that routes WM_HOTKEY → tkinter callback."""
+        user32 = ctypes.windll.user32
+
+        # Define the callback signature
+        WNDPROC_TYPE = WINFUNCTYPE(
+            wintypes.LONG_PTR,
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        )
+
+        # Save the original wndproc for CallWindowProcW chaining
+        orig = user32.GetWindowLongPtrW(wintypes.HWND(self._hwnd), GWLP_WNDPROC)
+        self._original_wndproc = wintypes.LONG_PTR(orig)
+
+        # The custom window procedure
+        def _wndproc(hwnd, msg, wparam, lparam):
+            if msg == WM_HOTKEY and wparam == self.HOTKEY_ID:
+                # root.after_idle is thread-safe and runs on tkinter main thread
+                try:
+                    self._root.after_idle(self._callback)
+                except Exception:
+                    pass  # Window may have been destroyed
+                return 0  # Message handled
+            # Pass everything else to the original procedure
+            return user32.CallWindowProcW(
+                self._original_wndproc, hwnd, msg, wparam, lparam
+            )
+
+        fn = WNDPROC_TYPE(_wndproc)
+        self._wndproc_fn = fn  # Prevent GC (critical!)
+
+        user32.SetWindowLongPtrW(
+            wintypes.HWND(self._hwnd),
+            GWLP_WNDPROC,
+            ctypes.cast(fn, wintypes.LONG_PTR),
+        )

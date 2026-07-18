@@ -59,6 +59,13 @@ class FlashApp:
             key=self._config.hotkey_key,
         )
 
+        # -- Startup: briefly show editor so user knows app is running --
+        print(f"⚡ The Flash is running!")
+        print(f"   Hotkey: {self._hotkey_manager.hotkey_string}")
+        print(f"   Notes saved to: {self._config.save_path}")
+        print(f"   Press hotkey or double-click tray icon to open editor.")
+        self._root.after(300, self._editor.show)  # Pop up briefly on start
+
         # -- Graceful shutdown --
         signal.signal(signal.SIGINT, lambda s, f: self.shutdown())
         signal.signal(signal.SIGTERM, lambda s, f: self.shutdown())
