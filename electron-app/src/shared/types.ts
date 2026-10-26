@@ -51,13 +51,13 @@ export const IPC = {
   UNSAVED_DIALOG: 'flash:unsaved-dialog', // renderer → main: ask Save/Discard/Cancel
   SHOW_IN_FOLDER: 'flash:show-in-folder', // renderer → main: open notes dir
   HIDE_WINDOW: 'flash:hide-window', // renderer → main: hide editor (after save / escape)
-  CLEAR_EDITOR: 'flash:clear-editor', // main → renderer: blank out textarea on show
-  FOCUS_EDITOR: 'flash:focus-editor', // main → renderer: focus textarea after show
+  CLEAR_EDITOR: 'flash:clear-editor', // main → renderer: start a fresh note
+  FOCUS_EDITOR: 'flash:focus-editor', // main → renderer: focus the active editor
   SAVE_DRAFT: 'flash:save-draft', // renderer → main: persist daily draft
   CLEAR_DRAFT: 'flash:clear-draft', // renderer → main: delete draft
-  RESTORE_DRAFT: 'flash:restore-draft', // main → renderer: restore draft text
-  GET_TODAY_NOTE_COUNT: 'flash:get-today-note-count', // renderer → main: count today's notes
-  GET_TODAY_NOTES: 'flash:get-today-notes', // renderer → main: list today's notes with preview
+  GET_DRAFT: 'flash:get-draft', // renderer → main: load the current draft
+  GET_NOTE_COUNT: 'flash:get-note-count', // renderer → main: count all saved notes
+  GET_NOTES: 'flash:get-notes', // renderer → main: list all saved notes with preview
   LOAD_NOTE: 'flash:load-note', // renderer → main: read note file content
   UPDATE_NOTE: 'flash:update-note', // renderer → main: update existing note in-place
   DELETE_NOTE: 'flash:delete-note', // renderer → main: delete a note file
@@ -68,8 +68,15 @@ export interface SaveResult {
   path: string
 }
 
-export interface TodayNote {
+export interface DraftSnapshot {
+  date: string
+  text: string
+  notePath: string | null
+}
+
+export interface NoteSummary {
   filename: string
+  date: string
   time: string
   preview: string
   path: string

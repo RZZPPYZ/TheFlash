@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { TodayNote } from '../../../shared/types'
+import type { NoteSummary } from '../../../shared/types'
 
 interface Props {
-  notes: TodayNote[]
+  notes: NoteSummary[]
   open: boolean
   onToggle: () => void
-  onSelectNote: (note: TodayNote, content: string) => void
+  onSelectNote: (note: NoteSummary, content: string) => void
   onDeleteNote: (filepath: string) => void
-  onMergeNotes: (notes: TodayNote[]) => void
+  onMergeNotes: (notes: NoteSummary[]) => void
   onSelectionChange: (paths: Set<string>) => void
   currentNotePath: string | null
   selectedPaths: Set<string>
@@ -37,7 +37,7 @@ export default function NoteSidebar({
     }
   }, [open])
 
-  async function handleClick(e: React.MouseEvent, note: TodayNote): Promise<void> {
+  async function handleClick(e: React.MouseEvent, note: NoteSummary): Promise<void> {
     // Ctrl+click: toggle multi-select
     if (e.ctrlKey || e.metaKey) {
       const next = new Set(selectedPaths)
@@ -90,7 +90,7 @@ export default function NoteSidebar({
         <span className={`text-[11px] font-semibold uppercase tracking-wider ${
           dark ? 'text-ink-300' : 'text-zinc-500'
         }`}>
-          {canMerge ? `Merge (${selectedPaths.size})` : `Today (${notes.length})`}
+          {canMerge ? `Merge (${selectedPaths.size})` : `All notes (${notes.length})`}
         </span>
         <div className="flex items-center gap-1">
           {canMerge && (
@@ -158,10 +158,11 @@ export default function NoteSidebar({
               onMouseLeave={() => setHoveredIdx(null)}
             >
               <div className="flex-1 min-w-0">
-                <span className={`block text-[12px] font-mono tabular-nums ${
+                <span className={`flex items-center justify-between gap-2 text-[11px] font-mono tabular-nums ${
                   dark ? 'text-accent' : 'text-amber-600'
                 }`}>
-                  {note.time}
+                  <span>{note.date}</span>
+                  <span>{note.time}</span>
                 </span>
                 <span className={`block text-[12px] truncate mt-0.5 ${
                   dark ? 'text-ink-100' : 'text-zinc-800'

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import TitleBar from './components/TitleBar'
-import Editor from './components/Editor'
+import Editor, { type EditorHandle } from './components/Editor'
 import StatusBar from './components/StatusBar'
 import NoteSidebar from './components/NoteSidebar'
 import { flash } from './lib/ipc'
-import type { AppConfig, TodayNote, ThemeName } from '../../shared/types'
+import type { AppConfig, NoteSummary, ThemeName } from '../../shared/types'
+
+const MarkdownPreview = lazy(() => import('./components/MarkdownPreview'))
 
 export default function App(): JSX.Element {
   const [text, setText] = useState('')
@@ -13,16 +15,17 @@ export default function App(): JSX.Element {
   const [savedFlash, setSavedFlash] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [isDraft, setIsDraft] = useState(false)
-  const [todayCount, setTodayCount] = useState(0)
-  const [todayNotes, setTodayNotes] = useState<TodayNote[]>([])
+  const [noteCount, setNoteCount] = useState(0)
+  const [notes, setNotes] = useState<NoteSummary[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [previewMode, setPreviewMode] = useState(false)
   const [currentNotePath, setCurrentNotePath] = useState<string | null>(null)
   const [fontSize, setFontSize] = useState(() => {
     const saved = localStorage.getItem('theflash-fontsize')
     return saved ? parseInt(saved, 10) : 13
   })
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<EditorHandle>(null)
   const savedFlashTimer = useRef<number | null>(null)
   const draftTimerRef = useRef<number | null>(null)
 
@@ -30,51 +33,65 @@ export default function App(): JSX.Element {
     flash.getConfig().then((cfg: AppConfig) => setTheme(cfg.theme))
   }, [])
 
-  useEffect(() => {
-    flash.getTodayNoteCount().then((n: number) => setTodayCount(n))
-  }, [])
-
-  function refreshTodayInfo(): void {
-    flash.getTodayNoteCount().then((n: number) => setTodayCount(n))
-    flash.getTodayNotes().then((n: TodayNote[]) => setTodayNotes(n))
+  function refreshNotes(openSidebar = false): void {
+    void Promise.all([flash.getNoteCount(), flash.getNotes()]).then(([count, nextNotes]) => {
+      setNoteCount(count)
+      setNotes(nextNotes)
+      if (openSidebar && nextNotes.length > 0) {
+        setSidebarOpen(true)
+      }
+    })
   }
 
   useEffect(() => {
+    refreshNotes(true)
+  }, [])
+
+  useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
+    document.documentElement.setAttribute('data-color-mode', theme)
   }, [theme])
 
   useEffect(() => {
+    let cancelled = false
+    void flash.getDraft().then((draft) => {
+      if (cancelled || !draft) return
+      setText(draft.text)
+      setModified(true)
+      setIsDraft(draft.notePath === null)
+      setSavedFlash(false)
+      setCurrentNotePath(draft.notePath)
+      setPreviewMode(false)
+      refreshNotes(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     const offClear = flash.onClearEditor(() => {
+      clearSavedDraft()
       setText('')
       setModified(false)
       setIsDraft(false)
       setSavedFlash(false)
       setCurrentNotePath(null)
-      refreshTodayInfo()
-    })
-    const offRestore = flash.onRestoreDraft((draftText: string) => {
-      setText(draftText)
-      setModified(true)
-      setIsDraft(true)
-      setSavedFlash(false)
-      setCurrentNotePath(null)
-      refreshTodayInfo()
+      setPreviewMode(false)
+      refreshNotes(true)
     })
     const offFocus = flash.onFocusEditor(() => {
-      requestAnimationFrame(() => textareaRef.current?.focus())
+      focusEditor()
     })
     return () => {
       offClear()
-      offRestore()
       offFocus()
     }
   }, [])
 
   useEffect(() => {
-    if (todayNotes.length > 0 && !isDraft) {
-      setSidebarOpen(true)
-    }
-  }, [todayNotes, isDraft])
+    if (notes.length > 0) setSidebarOpen(true)
+  }, [notes.length])
 
   // Ctrl+scroll to zoom font size.
   useEffect(() => {
@@ -92,14 +109,31 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
 
+  function focusEditor(): void {
+    requestAnimationFrame(() => editorRef.current?.editor.current?.view?.focus())
+  }
+
+  function cancelDraftTimer(): void {
+    if (draftTimerRef.current) {
+      window.clearTimeout(draftTimerRef.current)
+      draftTimerRef.current = null
+    }
+  }
+
+  function clearSavedDraft(): void {
+    cancelDraftTimer()
+    void flash.clearDraft()
+  }
+
   function handleChange(v: string): void {
     setText(v)
     setModified(true)
     setIsDraft(false)
-    if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current)
+    cancelDraftTimer()
     draftTimerRef.current = window.setTimeout(() => {
+      draftTimerRef.current = null
       if (v.trim()) {
-        void flash.saveDraft(v)
+        void flash.saveDraft(v, currentNotePath)
       } else {
         void flash.clearDraft()
       }
@@ -121,8 +155,8 @@ export default function App(): JSX.Element {
       }
       setModified(false)
       setIsDraft(false)
-      void flash.clearDraft()
-      refreshTodayInfo()
+      clearSavedDraft()
+      refreshNotes()
       return
     }
     setSaving(true)
@@ -136,8 +170,8 @@ export default function App(): JSX.Element {
       }
       setModified(false)
       setIsDraft(false)
-      void flash.clearDraft()
-      refreshTodayInfo()
+      clearSavedDraft()
+      refreshNotes()
       if (result) {
         setSavedFlash(true)
         if (savedFlashTimer.current) window.clearTimeout(savedFlashTimer.current)
@@ -164,7 +198,7 @@ export default function App(): JSX.Element {
       }
       setModified(false)
       setIsDraft(false)
-      void flash.clearDraft()
+      clearSavedDraft()
       flash.hideWindow()
       return
     }
@@ -179,8 +213,8 @@ export default function App(): JSX.Element {
       }
       setModified(false)
       setIsDraft(false)
-      void flash.clearDraft()
-      refreshTodayInfo()
+      clearSavedDraft()
+      refreshNotes()
       if (result) {
         setSavedFlash(true)
         if (savedFlashTimer.current) window.clearTimeout(savedFlashTimer.current)
@@ -210,14 +244,15 @@ export default function App(): JSX.Element {
         setSaving(false)
       }
     }
-    void flash.clearDraft()
+    clearSavedDraft()
     setText('')
     setModified(false)
     setIsDraft(false)
     setSavedFlash(false)
     setCurrentNotePath(null)
-    refreshTodayInfo()
-    requestAnimationFrame(() => textareaRef.current?.focus())
+    setPreviewMode(false)
+    refreshNotes()
+    focusEditor()
   }
 
   /** Close flow: auto-save if modified & non-empty, then hide. */
@@ -231,7 +266,7 @@ export default function App(): JSX.Element {
           const result = await flash.saveNote(text)
           if (result) setCurrentNotePath(result.path)
         }
-        void flash.clearDraft()
+        clearSavedDraft()
       } catch (e) {
         console.error('[auto-save] failed:', e)
       } finally {
@@ -246,7 +281,7 @@ export default function App(): JSX.Element {
 
   function toggleSidebar(): void {
     if (!sidebarOpen) {
-      flash.getTodayNotes().then((n: TodayNote[]) => setTodayNotes(n))
+      refreshNotes()
     }
     setSidebarOpen((v) => !v)
   }
@@ -257,20 +292,40 @@ export default function App(): JSX.Element {
     void flash.setTheme(next)
   }
 
-  function handleSelectNote(note: TodayNote, content: string): void {
+  function handlePreviewModeChange(preview: boolean): void {
+    setPreviewMode(preview)
+    if (!preview) {
+      focusEditor()
+    }
+  }
+
+  function togglePreviewMode(): void {
+    setPreviewMode((current) => {
+      const next = !current
+      if (!next) {
+        focusEditor()
+      }
+      return next
+    })
+  }
+
+  function handleSelectNote(note: NoteSummary, content: string): void {
+    clearSavedDraft()
     setText(content)
     setModified(false)
     setIsDraft(false)
     setCurrentNotePath(note.path)
-    requestAnimationFrame(() => textareaRef.current?.focus())
+    focusEditor()
   }
 
   async function handleDeleteNote(filepath: string): Promise<void> {
     try {
       await flash.deleteNote(filepath)
       if (currentNotePath === filepath) {
+        clearSavedDraft()
         setText('')
         setModified(false)
+        setIsDraft(false)
         setCurrentNotePath(null)
       }
       setSelectedPaths((prev) => {
@@ -278,23 +333,25 @@ export default function App(): JSX.Element {
         next.delete(filepath)
         return next
       })
-      refreshTodayInfo()
+      refreshNotes()
     } catch (e) {
       console.error('[delete] failed:', e)
     }
   }
 
-  async function handleMergeNotes(notes: TodayNote[]): Promise<void> {
-    if (notes.length < 2) return
+  async function handleMergeNotes(selectedNotes: NoteSummary[]): Promise<void> {
+    if (selectedNotes.length < 2) return
     try {
       const contents = await Promise.all(
-        notes.map((n) => flash.loadNote(n.path))
+        selectedNotes.map((n) => flash.loadNote(n.path))
       )
-      const merged = contents.join(' ')
+      const merged = contents
+        .map((content) => content.replace(/\r\n?/g, '\n').trimEnd())
+        .join('\n\n---\n\n')
       // Save merged content as a new note.
       const result = await flash.saveNote(merged)
       // Delete the original notes.
-      await Promise.all(notes.map((n) => flash.deleteNote(n.path)))
+      await Promise.all(selectedNotes.map((n) => flash.deleteNote(n.path)))
       // Load the merged note into the editor.
       if (result) {
         setText(merged)
@@ -302,9 +359,10 @@ export default function App(): JSX.Element {
         setCurrentNotePath(result.path)
         setIsDraft(false)
       }
+      clearSavedDraft()
       setSelectedPaths(new Set())
-      refreshTodayInfo()
-      requestAnimationFrame(() => textareaRef.current?.focus())
+      refreshNotes()
+      focusEditor()
     } catch (e) {
       console.error('[merge] failed:', e)
     }
@@ -325,28 +383,39 @@ export default function App(): JSX.Element {
       } else if (mod && (e.key === 'e' || e.key === 'E')) {
         e.preventDefault()
         if (selectedPaths.size >= 2) {
-          const selected = todayNotes.filter((n) => selectedPaths.has(n.path))
+          const selected = notes.filter((n) => selectedPaths.has(n.path))
           void handleMergeNotes(selected)
         }
       } else if (mod && e.shiftKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault()
         toggleSidebar()
+      } else if (mod && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault()
+        togglePreviewMode()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         void handleClose()
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, modified, saving, selectedPaths])
+  }, [text, modified, saving, selectedPaths, notes])
 
   return (
     <div className="flex h-screen flex-col bg-base-900">
-      <TitleBar modified={modified} isDraft={isDraft} theme={theme} onToggleTheme={toggleTheme} onClose={() => void handleClose()} />
+      <TitleBar
+        modified={modified}
+        isDraft={isDraft}
+        theme={theme}
+        previewMode={previewMode}
+        onPreviewModeChange={handlePreviewModeChange}
+        onToggleTheme={toggleTheme}
+        onClose={() => void handleClose()}
+      />
       <div className="flex flex-1 min-h-0">
         <NoteSidebar
-          notes={todayNotes}
+          notes={notes}
           open={sidebarOpen}
           onToggle={toggleSidebar}
           onSelectNote={handleSelectNote}
@@ -357,14 +426,28 @@ export default function App(): JSX.Element {
           selectedPaths={selectedPaths}
           theme={theme}
         />
-        <Editor value={text} onChange={handleChange} textareaRef={textareaRef} theme={theme} fontSize={fontSize} />
+        {previewMode ? (
+          <Suspense
+            fallback={
+              <div className={`grid min-w-0 flex-1 place-items-center text-xs ${
+                theme === 'dark' ? 'bg-base-800 text-ink-500' : 'bg-white text-zinc-400'
+              }`}>
+                Loading preview...
+              </div>
+            }
+          >
+            <MarkdownPreview value={text} theme={theme} />
+          </Suspense>
+        ) : (
+          <Editor value={text} onChange={handleChange} editorRef={editorRef} theme={theme} fontSize={fontSize} />
+        )}
       </div>
       <StatusBar
         text={text}
         saving={saving}
         savedFlash={savedFlash}
         theme={theme}
-        todayCount={todayCount}
+        noteCount={noteCount}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={toggleSidebar}
         onSave={() => void doSaveKeep()}

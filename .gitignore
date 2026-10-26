@@ -16,6 +16,7 @@ env/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -36,3 +37,6 @@ TheFlash.exe
 
 # Screenshots
 *-screenshot.png
+
+# Generated Electron Vite config
+electron-app/electron.vite.config.*.mjs

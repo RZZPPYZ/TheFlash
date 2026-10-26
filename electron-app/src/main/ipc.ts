@@ -60,20 +60,24 @@ export function registerIpc(): void {
     hideWindow()
   })
 
-  ipcMain.handle(IPC.SAVE_DRAFT, async (_e, text: string): Promise<void> => {
-    getDraftManager().save(text)
+  ipcMain.handle(IPC.SAVE_DRAFT, async (_e, text: string, notePath: string | null): Promise<void> => {
+    getDraftManager().save(text, notePath)
   })
 
   ipcMain.handle(IPC.CLEAR_DRAFT, async (): Promise<void> => {
     getDraftManager().clear()
   })
 
-  ipcMain.handle(IPC.GET_TODAY_NOTE_COUNT, async (): Promise<number> => {
-    return getNoteManager().getTodayCount()
+  ipcMain.handle(IPC.GET_DRAFT, async () => {
+    return getDraftManager().getSnapshot()
   })
 
-  ipcMain.handle(IPC.GET_TODAY_NOTES, async () => {
-    return getNoteManager().getTodayNotes()
+  ipcMain.handle(IPC.GET_NOTE_COUNT, async (): Promise<number> => {
+    return getNoteManager().getNoteCount()
+  })
+
+  ipcMain.handle(IPC.GET_NOTES, async () => {
+    return getNoteManager().getNotes()
   })
 
   ipcMain.handle(IPC.LOAD_NOTE, async (_e, filepath: string): Promise<string> => {

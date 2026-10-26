@@ -96,14 +96,12 @@ export function toggleWindow(): void {
   }
 }
 
-/** Show the editor: restore draft or clear content, position near cursor, focus. */
-export function showWindow(): void {
+/** Show the editor near the cursor. Existing note state is kept unless resetToNew is set. */
+export function showWindow(resetToNew = false): void {
   if (!win) return
 
-  const draftText = getDraftManager().getText()
-  if (draftText) {
-    win.webContents.send(IPC.RESTORE_DRAFT, draftText)
-  } else {
+  if (resetToNew) {
+    getDraftManager().clear()
     win.webContents.send(IPC.CLEAR_EDITOR)
   }
 
@@ -113,7 +111,7 @@ export function showWindow(): void {
   win.setAlwaysOnTop(false)
   win.show()
   win.focus()
-  // Tell renderer to autofocus the textarea now that the window is up.
+  // Tell the renderer to focus the active editor now that the window is up.
   win.webContents.send(IPC.FOCUS_EDITOR)
 }
 

@@ -15,7 +15,15 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@uiw/react-markdown-editor": "^6.1.4",
+    "@uiw/react-markdown-preview": "^5.2.1",
+    "mermaid": "^12.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1"
+  },
   "devDependencies": {
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",

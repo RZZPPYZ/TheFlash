@@ -18,7 +18,7 @@ let draftInstance: DraftManager | null = null
 export function init(): void {
   if (configInstance) return
   configInstance = new Config()
-  draftInstance = new DraftManager()
+  draftInstance = new DraftManager(configInstance.get().save_path || getDefaultSavePath())
   draftInstance.init()
 }
 
@@ -41,7 +41,7 @@ export function getNoteManager(): NoteManager {
 
 export function getDraftManager(): DraftManager {
   if (!draftInstance) {
-    draftInstance = new DraftManager()
+    draftInstance = new DraftManager(getConfig().get().save_path || getDefaultSavePath())
     draftInstance.init()
   }
   return draftInstance

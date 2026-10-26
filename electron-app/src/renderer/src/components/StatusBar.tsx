@@ -5,7 +5,7 @@ interface Props {
   saving: boolean
   savedFlash: boolean
   theme: 'dark' | 'light'
-  todayCount: number
+  noteCount: number
   sidebarOpen: boolean
   onToggleSidebar: () => void
   onSave: () => void
@@ -19,7 +19,7 @@ export default function StatusBar({
   saving,
   savedFlash,
   theme,
-  todayCount,
+  noteCount,
   sidebarOpen,
   onToggleSidebar,
   onSave,
@@ -40,7 +40,7 @@ export default function StatusBar({
       }`}
     >
       <div className="flex items-center gap-2">
-        {todayCount > 0 && (
+        {noteCount > 0 && (
           <button
             type="button"
             onClick={onToggleSidebar}
@@ -53,12 +53,12 @@ export default function StatusBar({
                   ? 'bg-base-700 text-ink-300 hover:bg-base-600'
                   : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
             }`}
-            title="Toggle today's notes (Ctrl+Shift+H)"
+            title="Toggle all notes (Ctrl+Shift+H)"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M1 3h10M1 6h10M1 9h10" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
             </svg>
-            {todayCount}
+            {noteCount}
           </button>
         )}
         <button

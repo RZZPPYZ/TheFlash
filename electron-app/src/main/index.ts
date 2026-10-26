@@ -43,7 +43,7 @@ function bootstrap(): void {
   createWindow()
 
   createTray({
-    onNewNote: () => showWindow(),
+    onNewNote: () => showWindow(true),
     onOpenFolder: () => {
       void shell.openPath(getConfig().get().save_path)
     },

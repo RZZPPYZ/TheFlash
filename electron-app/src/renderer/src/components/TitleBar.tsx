@@ -1,15 +1,25 @@
 import { useState } from 'react'
-import type { ThemeName } from '../../shared/types'
+import type { ThemeName } from '../../../shared/types'
 
 interface Props {
   modified: boolean
   isDraft: boolean
   theme: ThemeName
+  previewMode: boolean
+  onPreviewModeChange: (preview: boolean) => void
   onToggleTheme: () => void
   onClose: () => void
 }
 
-export default function TitleBar({ modified, isDraft, theme, onToggleTheme, onClose }: Props): JSX.Element {
+export default function TitleBar({
+  modified,
+  isDraft,
+  theme,
+  previewMode,
+  onPreviewModeChange,
+  onToggleTheme,
+  onClose
+}: Props): JSX.Element {
   const [hover, setHover] = useState(false)
   const dark = theme === 'dark'
 
@@ -33,6 +43,55 @@ export default function TitleBar({ modified, isDraft, theme, onToggleTheme, onCl
         )}
       </div>
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div
+          className={`mr-1 flex items-center rounded-md p-0.5 ${
+            dark ? 'bg-base-900/70' : 'bg-zinc-200/80'
+          }`}
+          role="group"
+          aria-label="View mode"
+        >
+          <button
+            type="button"
+            onClick={() => onPreviewModeChange(false)}
+            aria-label="Edit Markdown"
+            aria-pressed={!previewMode}
+            className={`grid h-6 w-7 place-items-center rounded transition-colors ${
+              !previewMode
+                ? dark
+                  ? 'bg-base-700 text-ink-100'
+                  : 'bg-white text-zinc-800 shadow-sm'
+                : dark
+                  ? 'text-ink-500 hover:text-ink-300'
+                  : 'text-zinc-400 hover:text-zinc-600'
+            }`}
+            title="Edit Markdown"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <path d="M5.5 3.5 2 8l3.5 4.5M10.5 3.5 14 8l-3.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => onPreviewModeChange(true)}
+            aria-label="Preview Markdown"
+            aria-pressed={previewMode}
+            className={`grid h-6 w-7 place-items-center rounded transition-colors ${
+              previewMode
+                ? dark
+                  ? 'bg-base-700 text-ink-100'
+                  : 'bg-white text-zinc-800 shadow-sm'
+                : dark
+                  ? 'text-ink-500 hover:text-ink-300'
+                  : 'text-zinc-400 hover:text-zinc-600'
+            }`}
+            title="Preview Markdown and Mermaid (Ctrl+Shift+P)"
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4S1.5 8 1.5 8z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              <circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          </button>
+        </div>
         <button
           type="button"
           onClick={onToggleTheme}

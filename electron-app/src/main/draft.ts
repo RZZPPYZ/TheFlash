@@ -1,26 +1,17 @@
 /**
  * Daily draft manager — persists unsaved text so it survives window hide / app crash.
  *
- * Draft file: %APPDATA%/TheFlash/draft.json
- * Schema: { date: "YYYY-MM-DD", text: "..." }
+ * Draft file: {save_path}/draft.json  (same folder as note .md files)
+ * Schema: { date: "YYYY-MM-DD", text: "...", notePath: "..." | null }
  *
  * Stale (yesterday's) drafts are ignored and overwritten on next save.
  * Atomic write (tmp + rename) prevents corruption on crash.
  */
 
-import { app } from 'electron'
 import { join } from 'path'
+import type { DraftSnapshot } from '../shared/types'
 
 const fsSync = require('fs') as typeof import('fs')
-
-interface DraftData {
-  date: string
-  text: string
-}
-
-function draftPath(): string {
-  return join(app.getPath('appData'), 'TheFlash', 'draft.json')
-}
 
 function todayString(): string {
   const d = new Date()
@@ -29,23 +20,28 @@ function todayString(): string {
 }
 
 export class DraftManager {
-  private cache: DraftData | null = null
+  constructor(private savePath: string) {}
+  private cache: DraftSnapshot | null = null
+
+  private draftPath(): string {
+    return join(this.savePath, 'draft.json')
+  }
 
   init(): void {
     this.cache = this.readFromDisk()
   }
 
-  getText(): string | null {
+  getSnapshot(): DraftSnapshot | null {
     if (!this.cache || this.cache.date !== todayString()) return null
-    return this.cache.text
+    return { ...this.cache }
   }
 
-  save(text: string): void {
+  save(text: string, notePath: string | null = null): void {
     if (!text || !text.trim()) {
       this.clear()
       return
     }
-    const data: DraftData = { date: todayString(), text }
+    const data: DraftSnapshot = { date: todayString(), text, notePath }
     this.cache = data
     this.writeToDisk(data)
   }
@@ -53,28 +49,33 @@ export class DraftManager {
   clear(): void {
     this.cache = null
     try {
-      fsSync.unlinkSync(draftPath())
+      fsSync.unlinkSync(this.draftPath())
     } catch {
       // file may not exist — that's fine
     }
   }
 
-  private readFromDisk(): DraftData | null {
+  private readFromDisk(): DraftSnapshot | null {
     try {
-      const raw = fsSync.readFileSync(draftPath(), 'utf-8')
-      const parsed = JSON.parse(raw) as DraftData
-      if (parsed.date && typeof parsed.text === 'string') return parsed
+      const raw = fsSync.readFileSync(this.draftPath(), 'utf-8')
+      const parsed = JSON.parse(raw) as Partial<DraftSnapshot>
+      if (parsed.date && typeof parsed.text === 'string') {
+        return {
+          date: parsed.date,
+          text: parsed.text,
+          notePath: typeof parsed.notePath === 'string' ? parsed.notePath : null
+        }
+      }
       return null
     } catch {
       return null
     }
   }
 
-  private writeToDisk(data: DraftData): void {
-    const p = draftPath()
+  private writeToDisk(data: DraftSnapshot): void {
+    const p = this.draftPath()
     const tmp = p + '.tmp'
-    const dir = join(app.getPath('appData'), 'TheFlash')
-    fsSync.mkdirSync(dir, { recursive: true })
+    fsSync.mkdirSync(this.savePath, { recursive: true })
     fsSync.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8')
     fsSync.renameSync(tmp, p)
   }

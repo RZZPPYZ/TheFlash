@@ -12,10 +12,12 @@
 
 - **Instant wake-up** — `Ctrl+Shift+F` summons the editor from any application
 - **Daily draft** — unsaved text auto-persists; re-open on the same day and your draft is restored
-- **Today sidebar** — collapsible left panel lists today's saved notes; click to reload and keep editing
-- **In-place save** — editing a saved note updates it instead of creating duplicates
+- **All notes sidebar** — collapsible left panel lists every saved note by default; click to reload and keep editing
+- **Full Markdown editor** — CodeMirror syntax highlighting and toolbar controls for H1–H6, bold, italic, underline, strikethrough, quotes, lists, tasks, links, images, code, tables, rules, and Mermaid
+- **Markdown & Mermaid preview** — render GFM Markdown, flowcharts, sequence diagrams, and other Mermaid diagrams
+- **In-place save** — editing a saved note keeps its file context across summon/hide and updates the original file instead of creating duplicates
 - **Delete notes** — hover any sidebar item to delete
-- **Merge notes** — `Ctrl+click` to multi-select sidebar notes, then `Ctrl+E` to merge them
+- **Merge notes** — `Ctrl+click` to multi-select sidebar notes, then `Ctrl+E` to merge them with Markdown section dividers
 - **Font zoom** — `Ctrl+Scroll` to adjust editor font size (9–32px, persisted)
 - **Dark / Light theme** — toggled via config
 - **System tray** — minimized to tray, always one hotkey away
@@ -28,10 +30,23 @@
 | `Ctrl+S` | Save note (keep window open) |
 | `Ctrl+Enter` | Save and close |
 | `Ctrl+N` | Save current & start new note |
-| `Ctrl+Shift+H` | Toggle today's sidebar |
+| `Ctrl+Shift+H` | Toggle all-notes sidebar |
+| `Ctrl+Shift+P` | Switch between Markdown editing and preview |
 | `Ctrl+E` | Merge selected sidebar notes |
 | `Ctrl+Scroll` | Zoom editor font |
 | `Escape` | Auto-save & close |
+
+### Markdown editor and Mermaid preview
+
+The source editor provides Markdown syntax highlighting and a full formatting toolbar. Use the code/eye controls in the title bar, or press `Ctrl+Shift+P`, to switch between source and rendered views. Mermaid diagrams use standard fenced code blocks:
+
+````markdown
+```mermaid
+flowchart LR
+  Idea --> Note
+  Note --> Done
+```
+````
 
 ### Quick Start
 
@@ -71,6 +86,7 @@ Notes are saved as `Documents/TheFlash_Notes/YYYY-MM-DD_HH-MM-SS.md`.
 
 - **Electron** — main process (window, tray, global hotkey, single instance)
 - **electron-vite** + **React 18** + **TypeScript**
+- **CodeMirror / react-markdown-editor** — Markdown source highlighting and formatting toolbar
 - **Tailwind CSS** — neutral-gray modern theme
 - **electron-builder** — Windows NSIS installer
 

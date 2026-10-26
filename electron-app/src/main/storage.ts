@@ -39,14 +39,9 @@ async function pathExists(p: string): Promise<boolean> {
 
 const fsSync = require('fs') as typeof import('fs')
 
-function todayPrefix(): string {
-  const d = new Date()
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-export interface TodayNote {
+export interface NoteSummary {
   filename: string
+  date: string
   time: string
   preview: string
   path: string
@@ -69,37 +64,45 @@ export class NoteManager {
     return { path: filepath }
   }
 
-  /** Count today's saved .md files in save_path. */
-  getTodayCount(): number {
-    const prefix = todayPrefix()
+  /** Count all saved .md files in save_path. */
+  getNoteCount(): number {
     try {
       const entries = fsSync.readdirSync(this.savePath) as string[]
-      return entries.filter((f) => f.startsWith(prefix) && f.endsWith('.md')).length
+      return entries.filter((f) => f.toLowerCase().endsWith('.md')).length
     } catch {
       return 0
     }
   }
 
-  /** List today's saved notes with preview. */
-  getTodayNotes(): TodayNote[] {
-    const prefix = todayPrefix()
+  /** List every saved note, newest first, with a short content preview. */
+  getNotes(): NoteSummary[] {
     try {
-      const entries = (fsSync.readdirSync(this.savePath) as string[])
-        .filter((f) => f.startsWith(prefix) && f.endsWith('.md'))
-        .sort()
-        .reverse()
-      return entries.map((f) => {
-        const full = join(this.savePath, f)
-        let preview = ''
-        try {
-          const content = fsSync.readFileSync(full, 'utf-8') as string
-          preview = content.replace(/\n/g, ' ').slice(0, 120)
-        } catch { /* ignore */ }
-        const timePart = f.replace(/\.md$/, '').slice(11)
-        const [h, m] = timePart.split('-')
-        const time = `${h}:${m}`
-        return { filename: f, time, preview, path: full }
-      })
+      return (fsSync.readdirSync(this.savePath) as string[])
+        .filter((f) => f.toLowerCase().endsWith('.md'))
+        .map((f) => {
+          const full = join(this.savePath, f)
+          let preview = ''
+          let modifiedAt = 0
+          try {
+            const stats = fsSync.statSync(full)
+            modifiedAt = stats.mtimeMs
+            const content = fsSync.readFileSync(full, 'utf-8') as string
+            preview = content.replace(/\n/g, ' ').slice(0, 120)
+          } catch { /* ignore */ }
+
+          const timestamp = f.match(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-\d{2}/)
+          const fallback = new Date(modifiedAt || Date.now())
+          const fallbackPad = (n: number) => n.toString().padStart(2, '0')
+          const date = timestamp?.[1] ??
+            `${fallback.getFullYear()}-${fallbackPad(fallback.getMonth() + 1)}-${fallbackPad(fallback.getDate())}`
+          const time = timestamp?.[2] && timestamp[3]
+            ? `${timestamp[2]}:${timestamp[3]}`
+            : `${fallbackPad(fallback.getHours())}:${fallbackPad(fallback.getMinutes())}`
+
+          return { filename: f, date, time, preview, path: full, modifiedAt }
+        })
+        .sort((a, b) => b.modifiedAt - a.modifiedAt || b.filename.localeCompare(a.filename))
+        .map(({ modifiedAt: _modifiedAt, ...note }) => note)
     } catch {
       return []
     }
